@@ -10,7 +10,7 @@ export default function PricingPage() {
                 <main className="flex-1 p-8 md:p-16 overflow-y-auto">
                     <header className="text-center mb-16">
                         <h1 className="text-4xl md:text-5xl font-display mb-4">Choose Your Growth Node</h1>
-                        <p className="text-text-secondary text-lg">Scalable intelligence for every stage of your startup journey.</p>
+                        <p className="text-text-secondary text-lg">Scalable intelligence for every stage of your investor journey.</p>
                     </header>
 
                     <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -35,7 +35,7 @@ export default function LandingPage() {
                             <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">INTELLIGENCE</span>
                         </h1>
                         <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-12">
-                            A structured signal exchange for India's emerging startup hubs.
+                            A structured signal exchange for India's emerging investor hubs.
                             Build connections, get instant help, and access market intelligence without the noise.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -62,7 +62,7 @@ export default function LandingPage() {
                     <FeatureCard
                         icon={<Globe className="w-6 h-6" />}
                         title="Geospatial Map"
-                        description="Visualize your local startup ecosystem nodes within a 25km radius."
+                        description="Visualize your local investor ecosystem nodes within a 25km radius."
                     />
                     <FeatureCard
                         icon={<Shield className="w-6 h-6" />}

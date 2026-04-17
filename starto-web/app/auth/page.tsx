@@ -14,7 +14,7 @@ import { usersApi } from '@/lib/apiClient'
 
 type AuthMode = 'login' | 'signup' | 'onboarding' | 'forgot_password'
 
-const ROLES = ['Founder', 'Talent', 'Mentor', 'Startup']
+const ROLES = ['Founder', 'Talent', 'Mentor', 'Investor']
 
 export default function AuthPage() {
     const router = useRouter()

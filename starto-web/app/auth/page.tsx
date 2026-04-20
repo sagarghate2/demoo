@@ -1,5 +1,5 @@
 "use client"
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mail, AlertCircle, ArrowRight, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input'
@@ -26,6 +26,13 @@ export default function AuthPage() {
     const { setAuth } = useAuthStore()
 
     const [mode, setMode] = useState<AuthMode>('login')
+
+    // Show Firebase config banner only on client (after hydration) to avoid
+    // SSR/client mismatch — server always renders false, client checks the real value.
+    const [firebaseBannerVisible, setFirebaseBannerVisible] = useState(false)
+    useEffect(() => {
+        setFirebaseBannerVisible(!firebaseConfigured)
+    }, [])
 
     // Shared fields
     const [email, setEmail] = useState('')
@@ -274,8 +281,8 @@ export default function AuthPage() {
                 <h1 className="text-4xl font-bold mb-2 tracking-tight">Starto</h1>
                 <p className="text-gray-400 mb-8 text-sm">Where Ecosystems Connect.</p>
 
-                {/* Firebase misconfiguration warning — visible only when env vars are missing */}
-                {!firebaseConfigured && (
+                {/* Firebase misconfiguration warning — visible only on client after hydration */}
+                {firebaseBannerVisible && (
                     <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-6 text-left">
                         <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
                         <div>

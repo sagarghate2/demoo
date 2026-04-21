@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 
 const mainPlans = [
     {
+        id: 'EXPLORER',
         name: 'Explorer',
         price: 0,
         duration: 'Forever',
@@ -21,9 +22,10 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'TRIAL',
         name: 'Trial',
         price: 29,
-        duration: '3 days',
+        duration: '7 days',
         tag: 'Entry',
         description: 'Test all premium features.',
         features: ['10 signals per day', 'Verified Identity', 'Full explore access'],
@@ -31,6 +33,7 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'SPRINT',
         name: 'Sprint',
         price: 59,
         duration: '7 days',
@@ -41,6 +44,7 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'BOOST',
         name: 'Boost',
         price: 99,
         duration: '15 days',
@@ -51,6 +55,7 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'PRO',
         name: 'Pro',
         price: 149,
         duration: '1 month',
@@ -62,6 +67,7 @@ const mainPlans = [
         highlight: true
     },
     {
+        id: 'PRO_PLUS',
         name: 'Pro Plus',
         price: 349,
         duration: '3 months',
@@ -72,6 +78,7 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'GROWTH',
         name: 'Growth',
         price: 579,
         duration: '6 months',
@@ -82,6 +89,7 @@ const mainPlans = [
         highlight: false
     },
     {
+        id: 'ANNUAL',
         name: 'Annual',
         price: 999,
         duration: '12 months',
@@ -95,6 +103,7 @@ const mainPlans = [
 
 const captainPlans = [
     {
+        id: 'CAPTAIN',
         name: 'Captain',
         price: 99,
         duration: '1 month',
@@ -105,6 +114,7 @@ const captainPlans = [
         highlight: true
     },
     {
+        id: 'CAPTAIN_PRO',
         name: 'Captain Pro',
         price: 249,
         duration: '1 month',
@@ -135,7 +145,7 @@ export default function SubscriptionPage() {
 
     const handleUpgradeClick = (planName: string) => {
         if (planName === subscription) return
-        if (planName === 'Explorer') return 
+        if (planName === 'Explorer') return
         setConfirmPlan(planName)
     }
 
@@ -146,13 +156,16 @@ export default function SubscriptionPage() {
         const planDetails = allPlans.find(p => p.name === confirmPlan)
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'}/api/subscriptions/upgrade`, {
+            const apiBase = typeof window !== 'undefined' && process.env.NODE_ENV === 'development'
+                ? ''
+                : (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080');
+            const response = await fetch(`${apiBase}/api/subscriptions/upgrade`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${useAuthStore.getState().token}`
                 },
-                body: JSON.stringify({ plan: confirmPlan })
+                body: JSON.stringify({ plan: planDetails?.id || confirmPlan })
             })
 
             if (response.ok) {
@@ -215,7 +228,7 @@ export default function SubscriptionPage() {
                             </motion.div>
                             <h1 className="text-5xl lg:text-7xl font-display mb-6 tracking-tighter">Unified Growth<br />Ecosystem</h1>
                             <p className="text-text-secondary max-w-2xl mx-auto text-lg leading-relaxed">
-                                Subscription tiers that empower all—Talent, Founders, and Leaders. 
+                                Subscription tiers that empower all—Talent, Founders, and Leaders.
                                 Unlock the tools to scale your vision in the Staro ecosystem.
                             </p>
                         </header>
@@ -269,7 +282,7 @@ export default function SubscriptionPage() {
                                     </div>
                                     <h2 className="text-4xl lg:text-5xl font-display mb-6">Captains Program</h2>
                                     <p className="text-gray-400 text-lg leading-relaxed mb-8">
-                                        Become a pillar of the community. Lead your own hub, manage localized signals, 
+                                        Become a pillar of the community. Lead your own hub, manage localized signals,
                                         and get exclusive administrative control over node networks.
                                     </p>
                                     <div className="space-y-4">
@@ -301,7 +314,7 @@ export default function SubscriptionPage() {
                                                     <span className={`text-sm ${plan.highlight ? 'text-black/50' : 'text-gray-400'}`}>/month</span>
                                                 </div>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => handleUpgradeClick(plan.name)}
                                                 disabled={subscription === plan.name}
                                                 className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-30`}
@@ -337,7 +350,7 @@ export default function SubscriptionPage() {
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="absolute top-0 right-0 p-20 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                            
+
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
                                     <Sparkles className="w-7 h-7 text-primary" />
@@ -411,7 +424,7 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
                     {plan.tag}
                 </div>
             )}
-            
+
             <div className="mb-6 pt-2">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${plan.highlight ? 'bg-primary text-white' : 'bg-surface-2 text-primary'}`}>
                     <plan.icon className="w-5 h-5" />

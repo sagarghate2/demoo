@@ -42,7 +42,7 @@ public class SubscriptionService {
 
     public SubscriptionResponseDTO createOrder(User user, String plan) {
 
-    Plan planEnum = Plan.valueOf(plan.toUpperCase());
+    Plan planEnum = Plan.fromString(plan);
 
     PlanEntity planEntity = planRepository.findByCode(planEnum)
             .orElseThrow(() -> new RuntimeException("Plan not found"));
@@ -109,7 +109,7 @@ public class SubscriptionService {
       boolean  verified = true;
         if (!verified) throw new RuntimeException("Payment verification failed");
 
-        Plan planEnum = Plan.valueOf(subscription.getPlan().toUpperCase()); //  enum lookup
+        Plan planEnum = Plan.fromString(subscription.getPlan()); // enum lookup
         PlanEntity planEntity = planRepository.findByCode(planEnum)
         .orElseThrow(() -> new RuntimeException("Plan not found"));
 
@@ -178,18 +178,18 @@ public class SubscriptionService {
     }
 
     public boolean canUnlockWhatsapp(User user) {
-        Plan planEnum = Plan.valueOf(user.getPlan().name().toUpperCase()); 
+        Plan planEnum = user.getPlan();
         return isPlanActive(user) &&
                PlanConfig.WHATSAPP_UNLOCK.getOrDefault(planEnum, false);
     }
 
     public int getMaxSignals(User user) {
-        Plan planEnum = Plan.valueOf(user.getPlan().name().toUpperCase()); 
+        Plan planEnum = user.getPlan();
         return PlanConfig.MAX_SIGNALS.getOrDefault(planEnum, 2);
     }
 
     public int getMaxOffers(User user) {
-        Plan planEnum = Plan.valueOf(user.getPlan().name().toUpperCase()); 
+        Plan planEnum = user.getPlan();
         return PlanConfig.MAX_OFFERS.getOrDefault(planEnum, 3);
     }
 
@@ -212,7 +212,7 @@ public class SubscriptionService {
 
 public SubscriptionResponseDTO upgradePlan(User user, String newPlan) {
 
-    Plan newPlanEnum = Plan.valueOf(newPlan.toUpperCase());
+    Plan newPlanEnum = Plan.fromString(newPlan);
     Plan currentPlan = user.getPlan();
 
     // same plan check
@@ -324,7 +324,7 @@ public void activateSubscriptionBySubscription(String subscriptionId, String pay
 
     OffsetDateTime now = OffsetDateTime.now();
 
-    Plan planEnum = Plan.valueOf(subscription.getPlan().toUpperCase());
+    Plan planEnum = Plan.fromString(subscription.getPlan());
     PlanEntity planEntity = planRepository.findByCode(planEnum)
             .orElseThrow(() -> new RuntimeException("Plan not found"));
 

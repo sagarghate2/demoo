@@ -1,10 +1,19 @@
 /**
  * Starto API Client
  * Centralized HTTP client for all backend calls.
- * Uses NEXT_PUBLIC_API_BASE_URL from .env.local (default: http://localhost:8080)
+ *
+ * In browser (CSR) dev mode: uses a relative URL ("") so requests like /api/signals
+ * are transparently proxied by Next.js to NEXT_PUBLIC_API_BASE_URL (see next.config.js
+ * rewrites). This completely eliminates cross-origin (CORS) issues in local dev.
+ *
+ * In SSR (Node.js) or production browser: uses the absolute NEXT_PUBLIC_API_BASE_URL
+ * so requests reach the backend directly.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+const BASE_URL =
+    typeof window !== 'undefined' && process.env.NODE_ENV === 'development'
+        ? ''  // CSR dev: relative URL → proxied by Next.js → backend (no CORS)
+        : (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080');
 
 
 // ─── Types matching the Spring Boot backend models ───────────────────────────

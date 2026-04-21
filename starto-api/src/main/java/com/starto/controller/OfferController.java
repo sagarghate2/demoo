@@ -92,7 +92,7 @@ public ResponseEntity<?> sendOffer(
         Offer offer = offerService.getOfferById(offerId);
 
         //  Convert plan
-        Plan plan = Plan.valueOf(user.getPlan().name().toUpperCase());
+        Plan plan = user.getPlan();
 
         //  Founder always allowed
         if (offer.getReceiverId().equals(user.getId())) {

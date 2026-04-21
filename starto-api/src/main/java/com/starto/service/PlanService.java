@@ -116,11 +116,7 @@ public class PlanService {
 }
 
 public Plan parsePlan(String planStr) {
-    try {
-        return Plan.valueOf(planStr.toUpperCase());
-    } catch (Exception e) {
-        return Plan.EXPLORER;
-    }
+    return Plan.fromString(planStr);
 }
 
 

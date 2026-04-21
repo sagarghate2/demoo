@@ -13,6 +13,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import jakarta.servlet.DispatcherType;
 import java.util.Arrays;
 import java.util.List;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -51,8 +53,11 @@ public class SecurityConfig {
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
+        mapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         return mapper;
     }
+
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -65,7 +70,10 @@ public class SecurityConfig {
                 var config = new CorsConfiguration();
                 config.setAllowedOrigins(allowedOrigins);
                 config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-                config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+                // Allow all request headers — prevents CORS preflight failures from
+                // browser-added headers like Cache-Control (from fetch cache:'no-store'),
+                // X-Requested-With, or any future custom headers.
+                config.setAllowedHeaders(List.of("*"));
                 config.setExposedHeaders(List.of("X-RateLimit-Remaining"));
                 config.setAllowCredentials(true);
                 config.setMaxAge(3600L);

@@ -51,7 +51,7 @@ public class ExploreController {
         }
 
         //  Convert String → Plan
-        Plan plan = Plan.valueOf(user.getPlan().name().toUpperCase());
+        Plan plan = user.getPlan();
 
         //  Expired plan
         boolean notExpired = plan == Plan.EXPLORER ||

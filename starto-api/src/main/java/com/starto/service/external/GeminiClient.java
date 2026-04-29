@@ -26,7 +26,7 @@ public class GeminiClient {
 
     public String validate(String prompt) {
 
-        String url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+        String url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + apiKey;
 
         Map<String, Object> request = Map.of(
         "contents", List.of(
@@ -64,7 +64,7 @@ public class GeminiClient {
     //  Fallback (MOST IMPORTANT)
     .onErrorResume(e -> {
     log.error("Gemini failed: {}", e.getMessage());
-    return Mono.just("{\"marketDemandScore\":5,\"competitors\":[],\"risks\":[]}");
+    return Mono.just("{\"marketDemand\":{\"score\":5,\"growthIndex\":\"N/A\",\"marketSaturation\":\"Unknown\",\"marketSummary\":\"Market data unavailable\",\"drivers\":[],\"sources\":[]},\"competitors\":[],\"risks\":[]}");
 })
 
     .block();   // keep for now (later we remove)

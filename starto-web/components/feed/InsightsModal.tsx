@@ -13,9 +13,10 @@ interface InsightsModalProps {
         views: number;
     };
     signalTitle: string;
+    hideOffers?: boolean;
 }
 
-export default function InsightsModal({ isOpen, onClose, stats, signalTitle }: InsightsModalProps) {
+export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hideOffers = false }: InsightsModalProps) {
     const [chartData, setChartData] = useState<{ day: string; dateStr: string; value: number; height: string }[]>([])
 
     useEffect(() => {
@@ -135,12 +136,12 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle }: I
                             </section>
 
                             {/* Interaction Stats */}
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className={`grid ${hideOffers ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
                                 <motion.div 
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ delay: 0.4 }}
-                                    className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50"
+                                    className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50 w-full"
                                 >
                                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center mb-2">
                                         <MessageSquare className="w-4 h-4 text-primary" />
@@ -149,24 +150,26 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle }: I
                                     <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Responses</span>
                                 </motion.div>
 
-                                <motion.div 
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.5 }}
-                                    className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50"
-                                >
-                                    <div className="w-9 h-9 rounded-full bg-accent-blue/10 flex items-center justify-center mb-2">
-                                        <Zap className="w-4 h-4 text-accent-blue" />
-                                    </div>
-                                    <span className="text-2xl font-light tracking-tighter text-black mb-0.5">{stats.offers}</span>
-                                    <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Help Offers</span>
-                                </motion.div>
+                                {!hideOffers && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.5 }}
+                                        className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50 w-full"
+                                    >
+                                        <div className="w-9 h-9 rounded-full bg-accent-blue/10 flex items-center justify-center mb-2">
+                                            <Zap className="w-4 h-4 text-accent-blue" />
+                                        </div>
+                                        <span className="text-2xl font-light tracking-tighter text-black mb-0.5">{stats.offers}</span>
+                                        <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Help Offers</span>
+                                    </motion.div>
+                                )}
 
                                 <motion.div 
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ delay: 0.6 }}
-                                    className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50"
+                                    className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50 w-full"
                                 >
                                     <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center mb-2">
                                         <Eye className="w-4 h-4 text-green-600" />

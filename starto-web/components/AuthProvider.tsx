@@ -6,7 +6,7 @@ import { auth, firebaseConfigured } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
-    const { token, isAuthenticated, user, clearAuth, setAuth, setLoading } = useAuthStore()
+    const { token, isAuthenticated, user, clearAuth, setAuth, setLoading, setInitialized } = useAuthStore()
 
     // 1. Listen for Firebase Auth changes to sync store.
     //    Guard: if Firebase is not configured (missing env vars) we skip the
@@ -21,12 +21,21 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // Firebase user present — token refresh is handled by Firebase SDK.
-                // setAuth is called explicitly during login/register.
+                // Firebase user present — refresh profile from backend to ensure up-to-date data
+                const token = await firebaseUser.getIdToken();
+                try {
+                    const { data: profile } = await usersApi.getMe(token);
+                    if (profile) {
+                        setAuth(firebaseUser, token, profile as any);
+                    }
+                } catch (err) {
+                    console.error('Failed to refresh profile on auth change', err);
+                }
             } else {
                 // Firebase user gone (sign-out or session expired) — clear store
                 if (isAuthenticated) clearAuth()
             }
+            setInitialized(true)
             setLoading(false)
         })
 

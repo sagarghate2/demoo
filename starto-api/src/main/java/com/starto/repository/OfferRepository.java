@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import java.time.OffsetDateTime;
+
 public interface OfferRepository extends JpaRepository<Offer, UUID> {
 
     // check if talent already sent offer to this signal
@@ -35,5 +37,9 @@ public interface OfferRepository extends JpaRepository<Offer, UUID> {
 List<Offer> findAllByReceiverId(@Param("receiverId") UUID receiverId);
 
 
-int countByRequesterId(UUID requesterId);
+long countByRequesterId(UUID requesterId);
+long countByRequesterIdAndCreatedAtAfter(UUID requesterId, OffsetDateTime timestamp);
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteBySignalId(UUID signalId);
 }

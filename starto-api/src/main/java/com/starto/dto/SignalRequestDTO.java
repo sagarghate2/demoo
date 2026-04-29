@@ -30,10 +30,9 @@ public class SignalRequestDTO {
 
     private String category;
     private String seeking;
-    private String compensation;
-    private String visibility;
     private String signalStrength;
     private Integer timelineDays;
     private BigDecimal lat;
     private BigDecimal lng;
+    private String address;
 }

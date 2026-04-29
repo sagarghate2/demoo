@@ -1,7 +1,6 @@
 package com.starto.controller;
 
 import com.starto.model.User;
-import com.starto.service.PresenceService;
 import com.starto.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,15 +11,17 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.security.core.Authentication;
-import java.time.OffsetDateTime;
-
 import com.starto.dto.PublicUserDTO;
+import com.starto.dto.ProfileUpdateDTO;
 import com.starto.enums.Plan;
-
 import java.util.Map;
 import java.util.HashMap;
+import java.util.UUID;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
 
 /**
  * User profile and presence controller.
@@ -36,7 +37,6 @@ import java.util.HashMap;
 public class UserController {
 
     private final UserService userService;
-    private final PresenceService presenceService; 
 
 
     /**
@@ -78,25 +78,28 @@ public class UserController {
 // edit the user profile
     @PutMapping("/profile")
     public ResponseEntity<User> updateProfile(@AuthenticationPrincipal String firebaseUid,
-            @RequestBody User profileUpdates) {
+            @RequestBody ProfileUpdateDTO updates) {
         return userService.getUserByFirebaseUid(firebaseUid)
                 .map(user -> {
-                    user.setName(profileUpdates.getName());
-                user.setUsername(profileUpdates.getUsername());
-                user.setBio(profileUpdates.getBio());
-                user.setIndustry(profileUpdates.getIndustry());
-                user.setSubIndustry(profileUpdates.getSubIndustry());
-                user.setCity(profileUpdates.getCity());
-                user.setState(profileUpdates.getState());
-                user.setCountry(profileUpdates.getCountry());
-                user.setAvatarUrl(profileUpdates.getAvatarUrl());
-                user.setWebsiteUrl(profileUpdates.getWebsiteUrl());
-                user.setLinkedinUrl(profileUpdates.getLinkedinUrl());
-                user.setTwitterUrl(profileUpdates.getTwitterUrl());
-                user.setGithubUrl(profileUpdates.getGithubUrl());
-                user.setLat(profileUpdates.getLat());
-                user.setLng(profileUpdates.getLng());
-                user.setFcmToken(profileUpdates.getFcmToken());
+                    if (updates.getName() != null) user.setName(updates.getName());
+                    if (updates.getUsername() != null) user.setUsername(updates.getUsername());
+                    if (updates.getBio() != null) user.setBio(updates.getBio());
+                    if (updates.getIndustry() != null) user.setIndustry(updates.getIndustry());
+                    if (updates.getSubIndustry() != null) user.setSubIndustry(updates.getSubIndustry());
+                    if (updates.getCity() != null) user.setCity(updates.getCity());
+                    if (updates.getState() != null) user.setState(updates.getState());
+                    if (updates.getAvatarUrl() != null) {
+                        user.setAvatarUrl(updates.getAvatarUrl());
+                    }
+                    if (updates.getWebsiteUrl() != null) user.setWebsiteUrl(updates.getWebsiteUrl());
+                    if (updates.getLinkedinUrl() != null) user.setLinkedinUrl(updates.getLinkedinUrl());
+                    if (updates.getTwitterUrl() != null) user.setTwitterUrl(updates.getTwitterUrl());
+                    if (updates.getGithubUrl() != null) user.setGithubUrl(updates.getGithubUrl());
+                    if (updates.getLat() != null) user.setLat(updates.getLat());
+                    if (updates.getLng() != null) user.setLng(updates.getLng());
+                    if (updates.getAddress() != null) user.setAddress(updates.getAddress());
+                    // Removed role update: roles are permanent once created
+                    
                     return ResponseEntity.ok(userService.updateProfile(user));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -111,7 +114,7 @@ public class UserController {
      *
      * @return the full {@link User} entity for the caller
      */
-    @Operation(summary = "Get my profile",
+    @Operation(summary = "Get current user profile",
                description = "Returns the full profile for the authenticated user. Updates online status.",
                security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
@@ -130,10 +133,26 @@ public class UserController {
 
 //  Get any user by username (public)
 @GetMapping("/{username}")
-public ResponseEntity<?> getUserByUsername(@PathVariable String username) {
+public ResponseEntity<?> getUserByUsername(@PathVariable String username, Authentication authentication) {
+    System.out.println("[UserController] Received profile request for: '" + username + "'");
+    String viewerUid = authentication != null ? authentication.getPrincipal().toString() : null;
+
     return userService.getUserByUsername(username)
-            .map(user -> ResponseEntity.ok(PublicUserDTO.from(user)))
-            .orElse(ResponseEntity.notFound().build());
+            .map(user -> {
+                System.out.println("[UserController] SUCCESS: Found user " + user.getUsername());
+                PublicUserDTO dto = PublicUserDTO.from(user);
+                
+                // Privacy: Only show expiry date to the owner
+                if (viewerUid == null || !viewerUid.equals(user.getFirebaseUid())) {
+                    dto.setPlanExpiresAt(null);
+                }
+                
+                return ResponseEntity.ok(dto);
+            })
+            .orElseGet(() -> {
+                System.err.println("[UserController] FAILED: User not found for '" + username + "'");
+                return ResponseEntity.notFound().build();
+            });
 }
 
 @GetMapping("/{username}/online-status")
@@ -200,12 +219,6 @@ public ResponseEntity<?> getPlanStatus(Authentication authentication) {
         // update DB
         userService.updatePresence(uid);
 
-        // update Redis — get city from user for presence topic
-        userService.getUserByFirebaseUid(uid).ifPresent(user -> {
-            String city = user.getCity() != null ? user.getCity() : "unknown";
-            presenceService.markOnline(uid, city);
-        });
-
         return ResponseEntity.ok().build();
     }
 
@@ -218,9 +231,6 @@ public ResponseEntity<?> getPlanStatus(Authentication authentication) {
 
         // update DB
         userService.markOffline(uid);
-
-        // update Redis
-        presenceService.markOffline(uid);
 
         return ResponseEntity.ok().build();
     }

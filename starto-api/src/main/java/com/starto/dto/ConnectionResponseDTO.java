@@ -30,6 +30,7 @@ public class ConnectionResponseDTO {
     private String receiverRole;
 
     private UUID signalId; // nullable if from profile
+    private UUID spaceId;
 
     public static ConnectionResponseDTO from(Connection connection) {
         return ConnectionResponseDTO.builder()
@@ -37,17 +38,21 @@ public class ConnectionResponseDTO {
                 .status(connection.getStatus())
                 .message(connection.getMessage())
                 .createdAt(connection.getCreatedAt())
-                .requesterId(connection.getRequester().getId())
-                .requesterName(connection.getRequester().getName())
-                .requesterUsername(connection.getRequester().getUsername())
-                .requesterAvatarUrl(connection.getRequester().getAvatarUrl())
-                .requesterRole(connection.getRequester().getRole())
-                .receiverId(connection.getReceiver().getId())
-                .receiverName(connection.getReceiver().getName())
-                .receiverUsername(connection.getReceiver().getUsername())
-                .receiverAvatarUrl(connection.getReceiver().getAvatarUrl())
-                .receiverRole(connection.getReceiver().getRole())
+                // Use formula fields if available, otherwise fallback to lazy-loaded entity
+                .requesterId(connection.getRequesterId())
+                .requesterName(connection.getRequesterName() != null ? connection.getRequesterName() : (connection.getRequester() != null ? connection.getRequester().getName() : null))
+                .requesterUsername(connection.getRequesterUsername() != null ? connection.getRequesterUsername() : (connection.getRequester() != null ? connection.getRequester().getUsername() : null))
+                .requesterAvatarUrl(connection.getRequesterAvatarUrl() != null ? connection.getRequesterAvatarUrl() : (connection.getRequester() != null ? connection.getRequester().getAvatarUrl() : null))
+                .requesterRole(connection.getRequesterRole() != null ? connection.getRequesterRole() : (connection.getRequester() != null ? connection.getRequester().getRole() : null))
+                
+                .receiverId(connection.getReceiverId())
+                .receiverName(connection.getReceiverName() != null ? connection.getReceiverName() : (connection.getReceiver() != null ? connection.getReceiver().getName() : null))
+                .receiverUsername(connection.getReceiverUsername() != null ? connection.getReceiverUsername() : (connection.getReceiver() != null ? connection.getReceiver().getUsername() : null))
+                .receiverAvatarUrl(connection.getReceiverAvatarUrl() != null ? connection.getReceiverAvatarUrl() : (connection.getReceiver() != null ? connection.getReceiver().getAvatarUrl() : null))
+                .receiverRole(connection.getReceiverRole() != null ? connection.getReceiverRole() : (connection.getReceiver() != null ? connection.getReceiver().getRole() : null))
+                
                 .signalId(connection.getSignalId())
+                .spaceId(connection.getSpaceId())
                 .build();
     }
 }

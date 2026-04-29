@@ -16,4 +16,8 @@ public class LocationService {
     public String getInsights(String location) {
         return mapsClient.fetchInsights(location);
     }
+
+    public java.util.List<com.starto.dto.ExploreResponse.Competitor> getCompetitors(String industry, String location) {
+        return mapsClient.fetchCompetitors(industry, location);
+    }
 }

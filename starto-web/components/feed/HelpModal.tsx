@@ -6,6 +6,7 @@ import { X, Zap, Link as LinkIcon, Building2 } from 'lucide-react'
 import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useRouter } from 'next/navigation'
 
 interface HelpModalProps {
     isOpen: boolean
@@ -17,7 +18,8 @@ interface HelpModalProps {
 export default function HelpModal({ isOpen, onClose, signalId, signalTitle }: HelpModalProps) {
     const { incrementOffer } = useSignalStore()
     const addOffer = useNetworkStore(state => state.addOffer)
-    const currentUser = useAuthStore(state => state.user?.username)
+    const { user } = useAuthStore()
+    const router = useRouter()
     
     const [organizationName, setOrganizationName] = useState('')
     const [portfolioLink, setPortfolioLink] = useState('')
@@ -53,7 +55,15 @@ export default function HelpModal({ isOpen, onClose, signalId, signalTitle }: He
                 onClose()
             }, 2000)
         } catch (err: any) {
-            setError(err.message || 'Failed to send offer. Please try again.')
+            if (err.status === 403) {
+                setError(`🚫 Limit reached! Your ${user?.plan || 'Explorer'} plan limit is exceeded. Redirecting to upgrade...`)
+                setTimeout(() => {
+                    router.push('/subscription')
+                    onClose()
+                }, 2500)
+            } else {
+                setError(err.message || 'Failed to send offer. Please try again.')
+            }
         }
     }
 

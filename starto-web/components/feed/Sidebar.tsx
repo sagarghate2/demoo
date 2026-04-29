@@ -25,8 +25,24 @@ export default function Sidebar() {
     const { isAuthenticated, user } = useAuthStore()
     const { signals } = useSignalStore()
     const { connections, pendingRequests, offers } = useNetworkStore()
-    const [imageError, setImageError] = useState(false)
+    const [totalSignalCount, setTotalSignalCount] = useState(0)
+    const [myNetworkCount, setMyNetworkCount] = useState(0)
     const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'offline'>('checking')
+
+    // Fetch true counts from backend
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            signalsApi.getMine().then(({ data }) => {
+                if (data) {
+                    const sigCount = data.signals?.length || 0;
+                    const spaceCount = (data as any).spaces?.length || 0;
+                    setTotalSignalCount(sigCount + spaceCount);
+                }
+            });
+            // Also networking count could be fetched here if needed
+            setMyNetworkCount(user.networkSize ?? connections.length);
+        }
+    }, [isAuthenticated, user, signals, connections])
 
     // Ping backend to check connectivity
     useEffect(() => {
@@ -35,8 +51,6 @@ export default function Sidebar() {
         })
     }, [])
 
-    const mySignalCount = user ? signals.filter(s => s.username === user.username).length : 0
-    const myNetworkCount = user ? connections.length : 0
     const hasNetworkNotifications = user && ((pendingRequests?.length || 0) > 0 || (offers?.length || 0) > 0);
 
     return (
@@ -44,7 +58,7 @@ export default function Sidebar() {
             {isAuthenticated && user ? (
                 <Link href="/profile" className="flex items-center gap-3 mb-10 px-2 group hover:bg-surface-2 p-2 rounded-xl transition-all">
                     <VerifiedAvatar
-                        username={user.username || ''}
+                        username={user.name || user.username || ''}
                         avatarUrl={user.avatarUrl}
                         plan={user.subscription || user.plan}
                         size="w-10 h-10"
@@ -82,7 +96,7 @@ export default function Sidebar() {
                             key={item.label}
                             href={item.href}
                             className={`flex justify-between items-center px-3 py-2.5 rounded-md transition-all ${isActive
-                                ? 'bg-primary text-white shadow-lg shadow-black/10'
+                                ? 'bg-primary text-white shadow-sm shadow-black/5'
                                 : 'text-text-secondary hover:bg-surface-2 hover:text-primary'
                                 }`}
                         >
@@ -99,14 +113,18 @@ export default function Sidebar() {
             </nav>
 
             <div className="pt-6 border-t border-border mt-auto">
-                <div className="grid grid-cols-2 gap-4 mb-3">
+                <div className="grid grid-cols-3 gap-2 mb-3">
                     <div>
                         <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Signals</p>
-                        <p className="text-lg font-mono font-bold">{mySignalCount}</p>
+                        <p className="text-lg font-mono font-bold">{totalSignalCount}</p>
                     </div>
                     <div>
                         <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Network</p>
                         <p className="text-lg font-mono font-bold">{myNetworkCount}</p>
+                    </div>
+                    <div>
+                        <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Plan</p>
+                        <p className="text-xs font-bold truncate text-primary">{user?.subscription || user?.plan || 'Free'}</p>
                     </div>
                 </div>
 
@@ -128,7 +146,7 @@ export default function Sidebar() {
 
                 <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-pointer">
                     <Image src="/logo.png" alt="Starto Logo" width={20} height={20} className="invert" />
-                    <span className="text-[10px] font-bold tracking-widest uppercase">Starto V2</span>
+                    <span className="text-[10px] font-bold tracking-widest uppercase">Starto V3</span>
                 </div>
             </div>
         </aside>

@@ -33,9 +33,11 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            System.out.println("No Bearer token found in request to: " + request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
+        System.out.println("Verifying token for: " + request.getRequestURI());
 
         String idToken = authHeader.substring(7);
         try {

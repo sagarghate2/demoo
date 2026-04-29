@@ -12,6 +12,10 @@ import com.starto.model.User;
 import com.starto.repository.PlanRepository;
 import com.starto.repository.SubscriptionRepository;
 import com.starto.repository.UserRepository;
+import com.starto.repository.SignalRepository;
+import com.starto.repository.NearbySpaceRepository;
+import com.starto.repository.OfferRepository;
+import com.starto.repository.AiUsageRepository;
 import lombok.RequiredArgsConstructor;
 
 import org.json.JSONObject;
@@ -39,6 +43,10 @@ public class SubscriptionService {
     private final EmailService emailService;
     private final NotificationService notificationService;
     private final PlanRepository planRepository;
+    private final SignalRepository signalRepository;
+    private final NearbySpaceRepository nearbySpaceRepository;
+    private final OfferRepository offerRepository;
+    private final AiUsageRepository aiUsageRepository;
 
     public SubscriptionResponseDTO createOrder(User user, String plan) {
 
@@ -276,29 +284,45 @@ public SubscriptionResponseDTO upgradePlan(User user, String newPlan) {
 
 
 
-public Map<String, Object> getCurrentPlanStatus(User user) {
+    public Map<String, Object> getCurrentPlanStatus(User user) {
+        OffsetDateTime now = OffsetDateTime.now();
+        Plan plan = user.getPlan();
+        boolean isActive = user.getPlanExpiresAt() == null || user.getPlanExpiresAt().isAfter(now);
+        long daysLeft = user.getPlanExpiresAt() == null ? 0 : java.time.temporal.ChronoUnit.DAYS.between(now, user.getPlanExpiresAt());
 
-    OffsetDateTime now = OffsetDateTime.now();
+        // Determine plan start date
+        OffsetDateTime planStart = user.getPlanExpiresAt() != null 
+            ? user.getPlanExpiresAt().minusDays(PlanConfig.PLAN_DURATION_DAYS.getOrDefault(plan, 30))
+            : user.getCreatedAt();
 
-    boolean isActive = user.getPlanExpiresAt() == null
-            || user.getPlanExpiresAt().isAfter(now);
+        // Signal Usage (Active signals + spaces)
+        int signalLimit = PlanConfig.MAX_SIGNALS.getOrDefault(plan, 0);
+        long signalsUsed = signalRepository.countByUserIdAndCreatedAtAfter(user.getId(), planStart) +
+                          nearbySpaceRepository.countByUser_IdAndCreatedAtAfter(user.getId(), planStart);
+        long signalsLeft = signalLimit == Integer.MAX_VALUE ? 9999 : Math.max(0, signalLimit - signalsUsed);
 
-    long daysLeft = 0;
+        // Offer Usage (Since plan start)
+        int offerLimit = PlanConfig.MAX_OFFERS.getOrDefault(plan, 0);
+        long offersUsed = offerRepository.countByRequesterIdAndCreatedAtAfter(user.getId(), planStart);
+        long offersLeft = offerLimit == Integer.MAX_VALUE ? 9999 : Math.max(0, offerLimit - offersUsed);
 
-    if (user.getPlanExpiresAt() != null) {
-        daysLeft = java.time.temporal.ChronoUnit.DAYS.between(
-                now,
-                user.getPlanExpiresAt()
-        );
+        // AI Usage (Since plan start)
+        int aiLimit = PlanConfig.MAX_AI_CALLS.getOrDefault(plan, 0);
+        long aiUsed = aiUsageRepository.countByUserIdAndDateAfter(user.getId(), planStart.toLocalDate());
+        long aiLeft = aiLimit == Integer.MAX_VALUE ? 9999 : Math.max(0, aiLimit - aiUsed);
+
+        Map<String, Object> status = new java.util.HashMap<>();
+        status.put("plan", plan.name());
+        status.put("isActive", isActive);
+        status.put("daysLeft", Math.max(daysLeft, 0));
+        status.put("expiresAt", user.getPlanExpiresAt());
+        status.put("signalsLeft", signalsLeft);
+        status.put("offersLeft", offersLeft);
+        status.put("aiLeft", aiLeft);
+        status.put("isVerified", user.getIsVerified());
+        
+        return status;
     }
-
-    return Map.of(
-            "plan", user.getPlan().name(),
-            "isActive", isActive,
-            "daysLeft", Math.max(daysLeft, 0),
-            "expiresAt", user.getPlanExpiresAt()
-    );
-}
 @Transactional
 public void activateSubscriptionBySubscription(String subscriptionId, String paymentId) {
 

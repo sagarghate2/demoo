@@ -7,6 +7,8 @@ import { useSignalStore, Signal } from '@/store/useSignalStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useRouter } from 'next/navigation'
 import { signalsApi } from '@/lib/apiClient'
+import { canPostSignal, getSignalLimit } from '@/lib/planUtils'
+import CityAutocomplete from '@/components/CityAutocomplete'
 
 interface RaiseSignalModalProps {
     isOpen: boolean;
@@ -15,7 +17,7 @@ interface RaiseSignalModalProps {
 }
 
 export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseSignalModalProps) {
-    const { user, token } = useAuthStore();
+    const { user, token, updateUser } = useAuthStore();
     const { addSignal } = useSignalStore();
     const router = useRouter();
     
@@ -24,6 +26,10 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
     const [headline, setHeadline] = useState('');
     const [details, setDetails] = useState('');
     const [duration, setDuration] = useState(0);
+    const [stage, setStage] = useState('MVP');
+    const [address, setAddress] = useState('');
+    const [cityInfo, setCityInfo] = useState({ city: '', state: '' });
+    const [coords, setCoords] = useState<{lat?: number, lng?: number}>({});
     const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState<{ type: 'success' | 'warn'; msg: string } | null>(null);
 
@@ -31,15 +37,28 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
         if (isOpen && editSignal) {
             setSignalType(editSignal.type || 'need');
             setCategory(editSignal.category);
-            setHeadline(editSignal.title);
-            setDetails(editSignal.description);
-            const parsedDuration = parseInt(editSignal.strength.split(' ')[0]);
+            setHeadline(editSignal.title || '');
+            setDetails(editSignal.description || '');
+            const parsedDuration = parseInt((editSignal.strength || '7').split(' ')[0]);
             setDuration(isNaN(parsedDuration) ? 7 : parsedDuration);
+            setStage((editSignal as any).stage || 'MVP');
+            setAddress((editSignal as any).address || (editSignal as any).city || '');
+            setCityInfo({ 
+                city: (editSignal as any).city || '', 
+                state: (editSignal as any).state || '' 
+            });
+            if ((editSignal as any).lat && (editSignal as any).lng) {
+                setCoords({ lat: (editSignal as any).lat, lng: (editSignal as any).lng });
+            }
         } else if (isOpen && !editSignal) {
             setHeadline('');
             setDetails('');
             setCategory('Talent');
             setDuration(0);
+            setStage('MVP');
+            setAddress('');
+            setCityInfo({ city: '', state: '' });
+            setCoords({});
             setSignalType('need');
             setToast(null);
         }
@@ -47,8 +66,28 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
 
     if (!isOpen) return null
 
+    const handleSelectLocation = (cityName: string, lat?: number, lng?: number, fullAddress?: string) => {
+        setAddress(fullAddress || cityName);
+        setCity(cityName);
+        if (lat && lng) setCoords({ lat, lng });
+    };
+
+    const setCity = (cityName: string) => {
+        // Try to split city/state if comma present
+        const parts = cityName.split(',').map(p => p.trim());
+        setCityInfo({ 
+            city: parts[0] || '', 
+            state: parts[1] || '' 
+        });
+    };
+
     const handleBroadcast = async () => {
         if (!headline || !details || duration === 0) return;
+
+        if (!address || address.trim() === '') {
+            setToast({ type: 'warn', msg: 'Please enter a location.' });
+            return;
+        }
 
         // Backend constraints validation
         if (headline.length < 5) {
@@ -64,9 +103,18 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
             return;
         }
 
-        if (duration > 7) {
-            onClose();
-            router.push('/subscription');
+        const currentCount = user?.signalCount || 0;
+        const limit = getSignalLimit(user?.plan);
+        if (!canPostSignal(user?.plan, currentCount) && !editSignal) {
+            setToast({ type: 'warn', msg: `🚫 Limit reached! Your ${user?.plan || 'Explorer'} plan allows only ${limit} signals.` });
+            setTimeout(() => { router.push('/subscription'); onClose(); }, 2500);
+            return;
+        }
+
+        const isExplorer = !user?.plan || user.plan.toUpperCase() === 'EXPLORER';
+        if (duration > 7 && isExplorer) {
+            setToast({ type: 'warn', msg: '🚫 StarPro Feature: Explorer plan allows max 7 days. Please upgrade.' });
+            setTimeout(() => { router.push('/subscription'); onClose(); }, 2500);
             return;
         }
 
@@ -86,6 +134,12 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                     seeking: category,
                     timelineDays: duration,
                     signalStrength: `${duration} Days`,
+                    stage: stage,
+                    city: cityInfo.city || address || 'Global',
+                    state: cityInfo.state || 'Global',
+                    address: address,
+                    lat: coords.lat,
+                    lng: coords.lng,
                 }
             );
 
@@ -123,9 +177,14 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                 category,
                 type: signalType,
                 seeking: category,
-                stage: 'Early Stage', // Default required field
-                city: user?.city || 'Local',
-                state: user?.state || 'Local', // Required field
+                stage: stage,
+                seeking: category,
+                stage: stage,
+                city: cityInfo.city || address || 'Global',
+                state: cityInfo.state || 'Global',
+                address: address,
+                lat: coords.lat,
+                lng: coords.lng,
                 timelineDays: duration,
                 signalStrength: `${duration} Days`,
             }
@@ -143,6 +202,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                 type: signalType,
                 userPlan: user?.subscription || user?.plan || 'Free',
             }, data.id);
+            updateUser({ signalCount: (user?.signalCount || 0) + 1 });
             setToast({ type: 'success', msg: '✓ Signal broadcast to backend DB!' });
             setTimeout(() => { onClose(); }, 1200);
         } else if (status === 401) {
@@ -205,6 +265,22 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
 
+                        {/* Project Stage */}
+                        <section>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-3 block">Project Stage</label>
+                            <div className="flex flex-wrap gap-2">
+                                {['Design', 'MVP', 'Live'].map(s => (
+                                    <button 
+                                        key={s} 
+                                        onClick={() => setStage(s)}
+                                        className={`px-4 py-1.5 rounded-full border text-sm transition-all ${stage === s ? 'bg-primary text-white border-primary font-medium' : 'border-border text-text-secondary hover:border-black hover:text-black'}`}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
                         {/* Category */}
                         <section>
                             <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-3 block">Select Category</label>
@@ -219,6 +295,59 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     </button>
                                 ))}
                             </div>
+                        </section>
+
+                        {/* Location */}
+                        <section className="relative">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-sm font-medium text-black">Location / Address</label>
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        if (navigator.geolocation) {
+                                            setToast({ type: 'success', msg: 'Detecting location...' });
+                                            navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                const lat = pos.coords.latitude;
+                                                const lng = pos.coords.longitude;
+                                                setCoords({ lat, lng });
+                                                try {
+                                                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                                                    const data = await res.json();
+                                                    if (data && data.address) {
+                                                        const city = data.address.city || data.address.town || data.address.village || 'Unknown City';
+                                                        const state = data.address.state || 'Unknown State';
+                                                        setCityInfo({ city, state });
+                                                        setAddress(data.display_name);
+                                                        setToast({ type: 'success', msg: 'Location accurately captured!' });
+                                                    } else {
+                                                        setAddress(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+                                                        setToast({ type: 'success', msg: 'GPS coordinates captured!' });
+                                                    }
+                                                } catch (e) {
+                                                    setAddress(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+                                                    setToast({ type: 'success', msg: 'GPS coordinates captured!' });
+                                                }
+                                            }, (err) => {
+                                                setToast({ type: 'warn', msg: 'Location permission denied' });
+                                            });
+                                        }
+                                    }}
+                                    className="text-[10px] font-bold uppercase text-primary hover:underline"
+                                >
+                                    Use my current location
+                                </button>
+                            </div>
+                            <CityAutocomplete 
+                                value={address}
+                                onChange={handleSelectLocation}
+                                placeholder="Enter city or full address..."
+                                inputClassName="w-full bg-white p-3 rounded-none border-b border-border outline-none focus:border-black text-sm placeholder:text-text-muted/60"
+                            />
+                            
+
+                            {coords.lat && (
+                                <p className="text-[9px] text-green-600 mt-1 font-mono">GPS: {coords.lat.toFixed(4)}, {coords.lng?.toFixed(4)}</p>
+                            )}
                         </section>
 
                         {/* Headline */}
@@ -248,7 +377,8 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                         <section>
                             <label className="text-sm font-medium text-black mb-2 flex justify-between items-center block">
                                 <span>Signal Duration <span className="text-red-500">*</span></span>
-                                <span className={`font-mono font-bold ${duration === 0 ? 'text-text-muted' : duration > 7 ? 'text-orange-600' : 'text-primary'}`}>
+                                <span className={`font-mono font-bold ${duration === 0 ? 'text-text-muted' : (duration > 7 && (!user?.plan || user.plan.toUpperCase() === 'EXPLORER')) ? 'text-orange-600' : 'text-primary'} flex items-center gap-2`}>
+                                    {editSignal && <span className="text-[9px] uppercase bg-surface-1 px-1.5 py-0.5 rounded border border-border text-text-muted flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Fixed</span>}
                                     {duration === 0 ? 'Not Selected' : `${duration} Days`}
                                 </span>
                             </label>
@@ -257,9 +387,10 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     type="range" 
                                     min="0" 
                                     max="30" 
-                                    className="w-full accent-black cursor-pointer"
+                                    className={`w-full accent-black ${editSignal ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
                                     value={duration}
-                                    onChange={(e) => setDuration(parseInt(e.target.value))}
+                                    onChange={(e) => !editSignal && setDuration(parseInt(e.target.value))}
+                                    disabled={!!editSignal}
                                 />
                                 <div className="flex justify-between text-[10px] text-text-muted mt-2 font-medium uppercase tracking-widest">
                                     <span>0</span>
@@ -267,10 +398,13 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     <span className="text-black font-bold">7 Days (Free Max)</span>
                                     <span>30 Days</span>
                                 </div>
+                                {editSignal && (
+                                    <p className="text-[9px] text-text-muted mt-3 italic">Note: Signal duration cannot be modified after broadcast to maintain ecosystem stability.</p>
+                                )}
                             </div>
                             
                             <AnimatePresence>
-                                {duration > 7 && (
+                                {duration > 7 && (!user?.plan || user.plan.toUpperCase() === 'EXPLORER') && (
                                     <motion.div 
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
@@ -316,13 +450,13 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                         <button 
                             onClick={handleBroadcast}
                             disabled={!headline || !details || duration === 0 || submitting}
-                            className={`w-full text-white px-8 py-3.5 rounded-xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase ${duration > 7 ? 'bg-orange-500 hover:bg-orange-600' : 'bg-black hover:bg-black/90'}`}
+                            className={`w-full text-white px-8 py-3.5 rounded-xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase ${(duration > 7 && (!user?.plan || user.plan.toUpperCase() === 'EXPLORER')) ? 'bg-orange-500 hover:bg-orange-600' : 'bg-black hover:bg-black/90'}`}
                         >
                             {submitting ? (
                                 <><Zap className="w-4 h-4 fill-white text-white animate-pulse" /> Broadcasting…</>
                             ) : duration === 0 ? (
                                 <>Select Duration to Broadcast</>
-                            ) : duration > 7 ? (
+                            ) : (duration > 7 && (!user?.plan || user.plan.toUpperCase() === 'EXPLORER')) ? (
                                 <><Zap className="w-4 h-4 fill-white text-white" /> Upgrade to Pro → Subscription</>
                             ) : (
                                 <><Zap className="w-4 h-4 fill-white text-white" /> Broadcast to Network</>

@@ -1,48 +1,70 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { reviewsApi } from '@/lib/apiClient'
 
 export interface Rating {
     id: string;
-    fromUsername: string;   // who gave the rating
-    toUsername: string;     // who received the rating
-    stars: number;          // 1-5
+    reviewerId: string;
+    reviewerName: string;
+    reviewerUsername: string;
+    reviewerAvatarUrl?: string;
+    rating: number;          // 1-5
     comment?: string;
-    signalId?: string;
-    createdAt: number;
+    createdAt: string;
 }
 
 interface RatingState {
     ratings: Rating[];
-    addRating: (rating: Omit<Rating, 'id' | 'createdAt'>) => void;
-    getRatingsFor: (username: string) => Rating[];
-    getAverageRating: (username: string) => number;
-    hasRated: (fromUsername: string, toUsername: string) => boolean;
+    summary: { averageRating: number; totalReviews: number } | null;
+    isLoading: boolean;
+    error: string | null;
+    
+    addRating: (userId: string, stars: number, comment: string) => Promise<void>;
+    fetchRatingsFor: (userId: string) => Promise<void>;
+    fetchSummary: (userId: string) => Promise<void>;
 }
 
-export const useRatingStore = create<RatingState>()(
-    persist(
-        (set, get) => ({
-            ratings: [],
-            addRating: (rating) => set((state) => ({
-                ratings: [{
-                    ...rating,
-                    id: Date.now().toString(),
-                    createdAt: Date.now(),
-                }, ...state.ratings]
-            })),
-            getRatingsFor: (username) => get().ratings.filter(r => r.toUsername === username),
-            getAverageRating: (username) => {
-                const userRatings = get().ratings.filter(r => r.toUsername === username);
-                if (userRatings.length === 0) return 0;
-                const total = userRatings.reduce((sum, r) => sum + r.stars, 0);
-                return Math.round((total / userRatings.length) * 10) / 10;
-            },
-            hasRated: (fromUsername, toUsername) =>
-                get().ratings.some(r => r.fromUsername === fromUsername && r.toUsername === toUsername),
-        }),
-        {
-            name: 'starto-rating-storage',
-            storage: createJSONStorage(() => localStorage),
+export const useRatingStore = create<RatingState>((set, get) => ({
+    ratings: [],
+    summary: null,
+    isLoading: false,
+    error: null,
+
+    addRating: async (userId, stars, comment) => {
+        set({ isLoading: true, error: null });
+        try {
+            const { error } = await reviewsApi.add(userId, stars, comment);
+            if (error) throw new Error(error);
+            
+            // Refresh data after adding
+            await get().fetchRatingsFor(userId);
+            await get().fetchSummary(userId);
+        } catch (err: any) {
+            set({ error: err.message });
+            throw err;
+        } finally {
+            set({ isLoading: false });
         }
-    )
-)
+    },
+
+    fetchRatingsFor: async (userId) => {
+        set({ isLoading: true, error: null });
+        try {
+            const { data, error } = await reviewsApi.getForUser(userId);
+            if (error) throw new Error(error);
+            set({ ratings: data || [] });
+        } catch (err: any) {
+            set({ error: err.message });
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
+    fetchSummary: async (userId) => {
+        try {
+            const { data } = await reviewsApi.getSummary(userId);
+            if (data) set({ summary: data });
+        } catch (err) {
+            console.error('Failed to fetch summary:', err);
+        }
+    }
+}))

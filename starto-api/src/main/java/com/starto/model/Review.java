@@ -45,6 +45,15 @@ public class Review implements Serializable{
     @Column(columnDefinition = "TEXT")
     private String comment;
 
+    @org.hibernate.annotations.Formula("(SELECT u.username FROM users u WHERE u.id = reviewer_id)")
+    private String reviewerUsername;
+
+    @org.hibernate.annotations.Formula("(SELECT u.name FROM users u WHERE u.id = reviewer_id)")
+    private String reviewerName;
+
+    @org.hibernate.annotations.Formula("(SELECT u.avatar_url FROM users u WHERE u.id = reviewer_id)")
+    private String reviewerAvatarUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

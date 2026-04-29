@@ -4,16 +4,54 @@ import Sidebar from '@/components/feed/Sidebar'
 import MobileBottomNav from '@/components/feed/MobileBottomNav'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, Search, BarChart4, TrendingUp, AlertTriangle, Briefcase, FileText, CheckCircle2 } from 'lucide-react'
+import Link from 'next/link'
+import { MapPin, Search, BarChart4, TrendingUp, AlertTriangle, Briefcase, FileText, CheckCircle2, Crown, Sparkles } from 'lucide-react'
 import { exploreApi, ApiExploreResponse } from '@/lib/apiClient'
 import { useAuthStore } from '@/store/useAuthStore'
+import CityAutocomplete from '@/components/CityAutocomplete'
+import { useRouter } from 'next/navigation'
 
 export default function StartoAIExplore() {
-    const { token } = useAuthStore()
+    const { user, isAuthenticated } = useAuthStore()
+    const router = useRouter()
     const [analyzing, setAnalyzing] = useState(false)
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [showResults, setShowResults] = useState(false)
     const [loadingMessage, setLoadingMessage] = useState('Analyzing Market...')
     const [results, setResults] = useState<ApiExploreResponse | null>(null)
+    const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
+    const [recentReports, setRecentReports] = useState<any[]>([])
+    const [isLoadingReports, setIsLoadingReports] = useState(false)
+
+    const fetchUsage = async () => {
+        try {
+            const { data } = await exploreApi.getUsage()
+            if (data) setUsage(data)
+        } catch (err) {
+            console.error('Failed to fetch usage:', err)
+        }
+    }
+
+    const fetchReports = async () => {
+        setIsLoadingReports(true)
+        try {
+            const { data } = await exploreApi.getReports()
+            if (data) setRecentReports(data)
+        } catch (err) {
+            console.error('Failed to fetch reports:', err)
+        } finally {
+            setIsLoadingReports(false)
+        }
+    }
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            router.push('/auth')
+        } else {
+            fetchUsage()
+            fetchReports()
+        }
+    }, [isAuthenticated, router])
 
     // Form state
     const [location, setLocation] = useState('')
@@ -30,6 +68,10 @@ export default function StartoAIExplore() {
     ]
 
     const handleAnalyze = async () => {
+        if (!isAuthenticated) {
+            router.push('/auth')
+            return
+        }
         if (!location || !industry) return;
         
         setAnalyzing(true)
@@ -40,7 +82,7 @@ export default function StartoAIExplore() {
         }, 2000)
 
         try {
-            const { data, error } = await exploreApi.analyze({
+            const { data, error, status } = await exploreApi.analyze({
                 location,
                 industry,
                 budget: parseInt(budget.replace(/[^0-9]/g, '')) || 0,
@@ -51,14 +93,35 @@ export default function StartoAIExplore() {
             if (data) {
                 setResults(data)
                 setShowResults(true)
+                // Refresh usage and reports after successful analysis
+                fetchUsage()
+                fetchReports()
             } else {
-                console.error('Analysis failed:', error)
-                // Fallback to demo mode if API fails (optional, but keep for robustness)
-                setShowResults(true)
+                if (status === 403) {
+                    setShowUpgradeModal(true);
+                } else {
+                    console.error('Analysis failed:', error)
+                    setShowResults(true)
+                }
             }
         } finally {
             clearInterval(interval)
             setAnalyzing(false)
+        }
+    }
+
+    const handleViewReport = (report: any) => {
+        try {
+            const data = typeof report.reportData === 'string' 
+                ? JSON.parse(report.reportData) 
+                : report.reportData;
+            setResults(data);
+            setLocation(report.location);
+            setIndustry(report.industry);
+            setBudget(`₹${report.budget}`);
+            setShowResults(true);
+        } catch (e) {
+            console.error('Failed to parse report data:', e);
         }
     }
 
@@ -75,8 +138,16 @@ export default function StartoAIExplore() {
 
                 <main className="flex-1 w-full p-4 md:p-6 lg:p-12 overflow-y-auto">
                     <header className="mb-12">
-                        <div className="inline-flex items-center gap-2 bg-primary text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">
-                            Powered by GPT-4o + Gemini
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                            <div className="inline-flex items-center gap-2 bg-primary text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                                Powered by GPT-4o + Gemini
+                            </div>
+                            {usage && (
+                                <div className="inline-flex items-center gap-2 bg-surface-2 border border-border px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-text-primary">
+                                    <Sparkles className="w-3 h-3 text-primary" />
+                                    {usage.remaining} Free Calls Left
+                                </div>
+                            )}
                         </div>
                         <h1 className="text-4xl md:text-5xl font-display mb-4">Starto AI Explore</h1>
                         <p className="text-text-secondary text-lg max-w-2xl">Real Market Intelligence. No Assumptions. No Hallucinations. Only Verified Data.</p>
@@ -92,16 +163,12 @@ export default function StartoAIExplore() {
                                 <div className="p-8 space-y-6 border-r border-border">
                                     <div>
                                         <label className="text-xs font-bold uppercase tracking-widest text-text-muted mb-2 block">Where are you launching?</label>
-                                        <div className="relative">
-                                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                                            <input 
-                                                type="text" 
-                                                value={location}
-                                                onChange={(e) => setLocation(e.target.value)}
-                                                placeholder="e.g. Pune, Maharashtra" 
-                                                className="w-full bg-surface-2 p-3 pl-10 rounded-md border border-border outline-none focus:border-primary transition-all" 
-                                            />
-                                        </div>
+                                        <CityAutocomplete 
+                                            value={location}
+                                            onChange={setLocation}
+                                            placeholder="Enter city name..."
+                                            useBackendData={true}
+                                        />
                                     </div>
                                     <div>
                                         <label className="text-xs font-bold uppercase tracking-widest text-text-muted mb-2 block">What sector are you in?</label>
@@ -167,6 +234,57 @@ export default function StartoAIExplore() {
                             </div>
                         </motion.div>
                     ) : (
+                        <div className="mb-8 flex items-center justify-between no-print">
+                            <button 
+                                onClick={() => {
+                                    setShowResults(false)
+                                    setResults(null)
+                                }}
+                                className="text-sm font-bold text-text-muted hover:text-black flex items-center gap-2 transition-colors"
+                            >
+                                ← Run New Analysis
+                            </button>
+                        </div>
+                    )}
+
+                    {!showResults && recentReports.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="mt-12"
+                        >
+                            <h3 className="text-xl font-display mb-6">Your Recent Market Reports</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {recentReports.map((report) => (
+                                    <div 
+                                        key={report.id}
+                                        onClick={() => handleViewReport(report)}
+                                        className="bg-white border border-border p-5 rounded-2xl hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="bg-primary/5 text-primary p-2 rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <span className="text-[10px] text-text-muted font-mono">
+                                                {new Date(report.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <h4 className="font-bold text-sm mb-1">{report.industry}</h4>
+                                        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                                            <MapPin className="w-3 h-3" />
+                                            <span>{report.location}</span>
+                                        </div>
+                                        <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">₹{report.budget} Budget</span>
+                                            <span className="text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">View Report →</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {showResults && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="md:col-span-2 space-y-6">
                                 <div className="bg-white border border-border p-8 rounded-2xl">
@@ -175,21 +293,21 @@ export default function StartoAIExplore() {
                                             <BarChart4 className="w-6 h-6" /> Market Demand
                                         </h3>
                                         <div className="text-4xl font-mono text-accent-green">
-                                            {results?.marketDemand?.score || '8.4'}
+                                            {results?.marketDemand?.score || '0'} <span className="text-lg text-text-muted">/ 10</span>
                                         </div>
                                     </div>
                                     <div className="space-y-4">
                                         <p className="text-sm text-text-secondary border-l-2 border-primary pl-4">
-                                            The {industry || 'AgriTech'} sector in {location || 'Pune'} shows strong growth indicators.
+                                            {results?.marketDemand?.marketSummary || `The ${industry || 'AgriTech'} sector in ${location || 'Pune'} shows strong growth indicators.`}
                                         </p>
                                         <div className="grid grid-cols-2 gap-4 pt-4">
                                             <div className="bg-surface-2 p-4 rounded-md">
                                                 <span className="text-[10px] uppercase text-text-muted font-bold block mb-1">Growth Index</span>
-                                                <span className="text-lg font-mono">+12.4% MoM</span>
+                                                <span className="text-sm font-semibold">{results?.marketDemand?.growthIndex || 'Growing steadily (+10.2% monthly)'}</span>
                                             </div>
                                             <div className="bg-surface-2 p-4 rounded-md">
                                                 <span className="text-[10px] uppercase text-text-muted font-bold block mb-1">Market Saturation</span>
-                                                <span className="text-lg font-mono">Low (22%)</span>
+                                                <span className="text-sm font-semibold">{results?.marketDemand?.marketSaturation || 'Plenty of room (only 15% filled)'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -200,20 +318,24 @@ export default function StartoAIExplore() {
                                         <AlertTriangle className="w-6 h-6" /> Risk Analysis
                                     </h3>
                                     <div className="space-y-4">
-                                        {(results?.risks || [
-                                            { title: 'Supply chain fragmentation', severity: 'Medium' },
-                                            { title: 'Low digital literacy in T3 cities', severity: 'High' },
-                                            { title: 'Regulatory uncertainty', severity: 'Medium' }
-                                        ]).map((risk, idx) => (
+                                        {(results?.risks || []).map((risk, idx) => (
                                             <div key={idx} className="p-4 border border-border rounded-lg flex justify-between items-center group hover:border-text-muted transition-all">
-                                                <span className="text-sm font-medium">{risk.title}</span>
-                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                                                    risk.severity === 'High' ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-yellow/10 text-accent-yellow'
+                                                <div className="space-y-1">
+                                                    <span className="text-sm font-medium block">{risk.title}</span>
+                                                    <p className="text-[10px] text-text-muted">{risk.description}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded shrink-0 ml-4 ${
+                                                    risk.severity === 'High' ? 'bg-accent-red/10 text-accent-red' : 
+                                                    risk.severity === 'Medium' ? 'bg-accent-yellow/10 text-accent-yellow' : 
+                                                    'bg-accent-blue/10 text-accent-blue'
                                                 }`}>
                                                     {risk.severity}
                                                 </span>
                                             </div>
                                         ))}
+                                        {(!results?.risks || results.risks.length === 0) && (
+                                            <p className="text-sm text-text-muted text-center py-4 italic">No significant risks identified.</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -230,13 +352,22 @@ export default function StartoAIExplore() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
-                                            {(results?.competitors || [
-                                                { name: 'AgriKart', location: 'Nashik', threatLevel: 'LOW' },
-                                                { name: 'FarmerLink', location: 'Pune', threatLevel: 'MEDIUM' },
-                                                { name: 'SoilSense', location: 'Ahmednagar', threatLevel: 'LOW' }
-                                            ]).map((c, idx) => (
+                                            {(results?.competitors || []).slice(0, (() => {
+                                                const plan = user?.plan?.toUpperCase() || 'EXPLORER';
+                                                if (plan === 'EXPLORER') return 3; // Show only 3 for Explorer
+                                                if (plan === 'TRIAL') return 5;
+                                                if (plan === 'SPRINT') return 6;
+                                                if (plan === 'BOOST') return 8;
+                                                if (plan === 'PRO') return 10;
+                                                return 12;
+                                            })()).map((c, idx) => (
                                                 <tr key={idx} className="group hover:bg-surface-2">
-                                                    <td className="py-4 font-medium">{c.name}</td>
+                                                    <td className="py-4">
+                                                        <div>
+                                                            <p className="font-medium">{c.name}</p>
+                                                            <p className="text-[10px] text-text-muted line-clamp-1">{c.description}</p>
+                                                        </div>
+                                                    </td>
                                                     <td className="py-4 text-text-secondary">{c.location}</td>
                                                     <td className="py-4">
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -249,25 +380,62 @@ export default function StartoAIExplore() {
                                                     </td>
                                                 </tr>
                                             ))}
+                                            {results?.competitors && results.competitors.length > (() => {
+                                                const plan = user?.plan?.toUpperCase() || 'EXPLORER';
+                                                if (plan === 'EXPLORER') return 3;
+                                                if (plan === 'TRIAL') return 5;
+                                                if (plan === 'SPRINT') return 6;
+                                                if (plan === 'BOOST') return 8;
+                                                if (plan === 'PRO') return 10;
+                                                return 12;
+                                            })() && (
+                                                <tr>
+                                                    <td colSpan={3} className="py-6 text-center">
+                                                        <div className="bg-surface-2 p-4 rounded-xl border border-dashed border-border">
+                                                            <p className="text-xs text-text-secondary mb-3">Upgrade to see all {(results.competitors.length - (() => {
+                                                                const plan = user?.plan?.toUpperCase() || 'EXPLORER';
+                                                                if (plan === 'EXPLORER') return 3;
+                                                                if (plan === 'TRIAL') return 5;
+                                                                if (plan === 'SPRINT') return 6;
+                                                                if (plan === 'BOOST') return 8;
+                                                                if (plan === 'PRO') return 10;
+                                                                return 12;
+                                                            })())} more competitors found via Google Maps.</p>
+                                                            <Link href="/subscription" className="text-xs font-bold text-primary hover:underline uppercase tracking-widest flex items-center justify-center gap-2">
+                                                                <Crown className="w-3 h-3" /> Go Premium to Unlock All →
+                                                            </Link>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {(!results?.competitors || results.competitors.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={3} className="py-8 text-center text-sm text-text-muted italic">No direct competitors found in this region.</td>
+                                                </tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
                             </motion.section>
 
-                            <aside className="space-y-6">
-                                <div className="bg-primary text-white p-8 rounded-2xl overflow-hidden relative">
-                                    <FileText className="w-12 h-12 text-white/10 absolute -top-2 -right-2" />
-                                    <h4 className="text-lg font-display mb-4">90-Day Plan</h4>
+                            <aside className="space-y-6 report-sidebar">
+                                <div className="bg-primary text-white p-8 rounded-2xl overflow-hidden relative print:bg-white print:text-black print:border print:border-border">
+                                    <FileText className="w-12 h-12 text-white/10 absolute -top-2 -right-2 print:hidden" />
+                                    <h4 className="text-lg font-display mb-4">90-Day Execution Plan</h4>
                                     <div className="space-y-6 relative">
-                                        {(results?.actionPlan?.[0]?.tasks.slice(0, 2).map((task, idx) => (
-                                            <div key={idx} className="border-l border-white/20 pl-4 relative">
-                                                {idx === 0 ? (
-                                                    <CheckCircle2 className="w-4 h-4 text-accent-green absolute -left-2 top-0 bg-primary" />
-                                                ) : (
-                                                    <div className="w-3 h-3 border border-white/20 rounded-full absolute -left-[6.5px] top-1 bg-primary" />
-                                                )}
-                                                <span className="text-[10px] uppercase text-white/40 block">Phase {idx + 1}</span>
-                                                <p className="text-xs mt-1">{task}</p>
+                                        {(results?.actionPlan?.map((phase, pIdx) => (
+                                            <div key={pIdx} className="space-y-3">
+                                                <span className="text-[10px] uppercase text-white/40 block print:text-text-muted">{phase.range}</span>
+                                                {phase.tasks.map((task, tIdx) => (
+                                                    <div key={tIdx} className="border-l border-white/20 pl-4 relative print:border-border">
+                                                        {tIdx === 0 ? (
+                                                            <CheckCircle2 className="w-4 h-4 text-accent-green absolute -left-2 top-0 bg-primary print:bg-white" />
+                                                        ) : (
+                                                            <div className="w-3 h-3 border border-white/20 rounded-full absolute -left-[6.5px] top-1 bg-primary print:bg-white print:border-border" />
+                                                        )}
+                                                        <p className="text-xs">{task}</p>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )) || (
                                             <>
@@ -307,6 +475,63 @@ export default function StartoAIExplore() {
                     <MobileBottomNav />
                 </div>
             </div>
+            <AnimatePresence>
+                {showUpgradeModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+                        onClick={() => setShowUpgradeModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 30 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 30 }}
+                            className="bg-white rounded-[2rem] p-10 max-w-lg w-full shadow-2xl relative overflow-hidden"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="absolute top-0 right-0 p-20 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+                                    <Crown className="w-7 h-7 text-primary" />
+                                </div>
+                                <div className="relative z-10">
+                                    <h3 className="text-2xl font-display tracking-tight text-black">AI Limit Reached</h3>
+                                    <p className="text-sm text-text-muted">Upgrade to unlock more market intelligence</p>
+                                </div>
+                            </div>
+
+                            <div className="p-6 bg-surface-2 rounded-2xl border border-border mb-8 space-y-4">
+                                <p className="text-text-secondary text-sm leading-relaxed">
+                                    You've reached the daily limit of AI Market Analysis for your current plan. 
+                                    Premium plans include deeper insights, granular data, and unlimited strategy reports.
+                                </p>
+                                <div className="flex items-center gap-3 py-2">
+                                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Priority Access Available</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setShowUpgradeModal(false)}
+                                    className="flex-1 border border-border py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-surface-2 transition-colors text-black"
+                                >
+                                    Dismiss
+                                </button>
+                                <Link
+                                    href="/subscription"
+                                    className="flex-1 bg-primary text-white py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                >
+                                    View Plans
+                                </Link>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }

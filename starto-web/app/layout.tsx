@@ -24,8 +24,12 @@ export default function RootLayout({
                     </AuthProvider>
                 </ErrorBoundary>
                 <Script
-                    src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async&callback=Function.prototype`}
-                    strategy="afterInteractive"
+                    src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=geometry,places`}
+                    strategy="beforeInteractive"
+                />
+                <Script
+                    src="https://checkout.razorpay.com/v1/checkout.js"
+                    strategy="lazyOnload"
                 />
             </body>
         </html>

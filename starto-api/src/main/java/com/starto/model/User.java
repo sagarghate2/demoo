@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Formula;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.io.Serializable;
@@ -103,13 +104,11 @@ private String githubUrl;
     @Column(name = "plan_expires_at")
     private OffsetDateTime planExpiresAt;
 
-    @Column(name = "signal_count")
-    @Builder.Default
-    private Integer signalCount = 0;
+    @Formula("(SELECT COALESCE((SELECT COUNT(*) FROM signals s WHERE s.user_id = id AND s.status = 'open') + (SELECT COUNT(*) FROM nearby_spaces ns WHERE ns.user_id = id), 0))")
+    private Integer signalCount;
 
-    @Column(name = "network_size")
-    @Builder.Default
-    private Integer networkSize = 0;
+    @Formula("(SELECT COALESCE(COUNT(*), 0) FROM connections c WHERE (c.requester_id = id OR c.receiver_id = id) AND c.status = 'ACCEPTED')")
+    private Integer networkSize;
 
     @Column(name = "network_tier", length = 20)
     @Builder.Default
@@ -123,9 +122,16 @@ private String githubUrl;
     @Builder.Default
     private OffsetDateTime lastSeen = OffsetDateTime.now();
 
+    @Column(columnDefinition = "TEXT")
+    private String address;
+
     @Column(name = "is_verified")
     @Builder.Default
     private Boolean isVerified = false;
+
+    @Column(name = "welcome_email_sent")
+    @Builder.Default
+    private Boolean welcomeEmailSent = false;
 
     @Column(name = "is_active")
      @Builder.Default

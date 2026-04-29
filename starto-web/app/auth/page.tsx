@@ -5,6 +5,7 @@ import { Mail, AlertCircle, ArrowRight, CheckCircle, Eye, EyeOff } from 'lucide-
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
 import CityAutocomplete from '@/components/CityAutocomplete'
+import VerifiedAvatar from '@/components/feed/VerifiedAvatar'
 
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -14,12 +15,13 @@ import { auth, firebaseConfigured } from '@/lib/firebase'
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
-    sendEmailVerification 
+    sendEmailVerification,
+    sendPasswordResetEmail
 } from 'firebase/auth'
 
 type AuthMode = 'login' | 'signup' | 'onboarding' | 'forgot_password'
 
-const ROLES = ['Founder', 'Talent', 'Mentor', 'Investor']
+const ROLES = ['founder', 'talent', 'mentor', 'investor']
 
 export default function AuthPage() {
     const router = useRouter()
@@ -43,6 +45,7 @@ export default function AuthPage() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
     const [signupSuccess, setSignupSuccess] = useState(false)
+    const [isWaitingForVerification, setIsWaitingForVerification] = useState(false)
 
     // Sign-up extra fields
     const [name, setName] = useState('')
@@ -50,10 +53,13 @@ export default function AuthPage() {
     const [role, setRole] = useState('')
     const [bio, setBio] = useState('')
     const [city, setCity] = useState('')
+    const [lat, setLat] = useState<number | null>(null)
+    const [lng, setLng] = useState<number | null>(null)
+    const [address, setAddress] = useState('')
     const [phone, setPhone] = useState('')
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [isDetecting, setIsDetecting] = useState(false)
 
-    const [forgotStep, setForgotStep] = useState<'phone' | 'otp' | 'reset'>('phone')
-    const [forgotOtp, setForgotOtp] = useState('')
     const [forgotSuccess, setForgotSuccess] = useState(false)
 
     const switchMode = (m: AuthMode) => {
@@ -71,50 +77,25 @@ export default function AuthPage() {
         setConfirmPassword('')
         setShowPassword(false)
         setShowConfirmPassword(false)
-        setForgotStep('phone')
-        setForgotOtp('')
     }
 
     // ──────────── FORGOT PASSWORD ────────────
-    const handleForgotPhoneSubmit = (e: React.FormEvent) => {
+    const handleForgotEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        setLoading(true)
         setError('')
-        if (!phone) {
-            setError('Please enter a mobile number.')
-            return
+        try {
+            if (!email.trim()) {
+                setError('Please enter your email address.')
+                return
+            }
+            await sendPasswordResetEmail(auth, email.trim())
+            setForgotSuccess(true)
+        } catch (err: any) {
+            setError(firebaseErrorMessage(err))
+        } finally {
+            setLoading(false)
         }
-        const user = getUserByPhone(phone)
-        if (!user) {
-            setError('This phone number is not registered.')
-            return
-        }
-        // User found, mock sending OTP
-        setForgotStep('otp')
-    }
-
-    const handleForgotOtpSubmit = (e: React.FormEvent) => {
-        e.preventDefault()
-        setError('')
-        if (forgotOtp !== '123456') {
-            setError('Invalid OTP. Please enter 123456.')
-            return
-        }
-        setForgotStep('reset')
-    }
-
-    const handleForgotResetSubmit = (e: React.FormEvent) => {
-        e.preventDefault()
-        setError('')
-        if (password.length < 8) {
-            setError('Password must be at least 8 characters.')
-            return
-        }
-        if (password !== confirmPassword) {
-            setError('Passwords do not match.')
-            return
-        }
-        updatePasswordByPhone(phone, password)
-        setForgotSuccess(true)
     }
 
     // ──────────── FIREBASE ERROR MAPPER ────────────
@@ -155,13 +136,33 @@ export default function AuthPage() {
             default:
                 // Fallback: strip the raw Firebase prefix for any unhandled codes
                 if (err?.message) {
-                    return err.message
-                        .replace(/^Firebase:\s*/i, '')
-                        .replace(/\s*\(auth\/[^)]+\)\s*\.?$/, '')
-                        .trim() || 'Something went wrong. Please try again.'
+                    return err.message.replace(/^Firebase:\s*/i, '').replace(/\s*\(auth\/.*\)\.?$/, '.')
                 }
                 return 'Something went wrong. Please try again.'
         }
+    }
+
+    // ──────────── BACKEND ERROR MAPPER ────────────
+    // Maps raw SQL exceptions from the Spring Boot backend to user-friendly messages.
+    const formatBackendError = (errString: string): string => {
+        if (!errString) return '';
+        const lowerErr = errString.toLowerCase();
+        if (lowerErr.includes('users_phone_key')) {
+            return 'This phone number is already registered to another account.';
+        }
+        if (lowerErr.includes('users_email_key')) {
+            return 'This email address is already registered.';
+        }
+        if (lowerErr.includes('duplicate key value') || lowerErr.includes('already exists')) {
+            return 'An account with these details already exists.';
+        }
+        if (lowerErr.includes('could not execute statement')) {
+            return 'A database error occurred. Please try again later.';
+        }
+        if (lowerErr.includes('jwt') || lowerErr.includes('token')) {
+            return 'Your session has expired. Please log in again.';
+        }
+        return errString;
     }
 
     // ──────────── LOGIN ────────────
@@ -175,7 +176,7 @@ export default function AuthPage() {
         const base = lastName ? `${firstName}_${lastName}` : firstName
         return { base, roleSlug, canonical: `${base}_${roleSlug}` }
     }
-
+    
     // On every login: ensure username is in correct format.
     // Only keeps stored username if user already customized it (handle differs from auto-gen).
     const ensureFormattedUsername = (u: { name: string; role: string; username: string; email: string }) => {
@@ -204,13 +205,21 @@ export default function AuthPage() {
             // 1. Firebase Login
             const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password)
             const firebaseUser = userCredential.user
+
+            if (!firebaseUser.emailVerified) {
+                await sendEmailVerification(firebaseUser);
+                setError('Please verify your email address. A new verification link has been sent to your email.');
+                await auth.signOut();
+                return;
+            }
+
             const token = await firebaseUser.getIdToken()
 
             // 2. Fetch Profile from Backend
             const { data: profile, error: apiError } = await usersApi.getMe(token)
 
             if (apiError || !profile) {
-                setError(apiError || 'Failed to load profile from server.')
+                setError(formatBackendError(apiError || 'Failed to load profile from server.'))
                 return
             }
 
@@ -239,34 +248,58 @@ export default function AuthPage() {
             const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password)
             const firebaseUser = userCredential.user
             
-            // 2. Send Verification Email
-            await sendEmailVerification(firebaseUser)
-            
             const token = await firebaseUser.getIdToken()
 
-            // 3. Sync with Backend
+            // 2. Sync with Backend
             const { data: profile, error: apiError } = await usersApi.register({
                 email: email.trim(),
                 name: name.trim(),
                 role,
                 bio,
                 city,
+                lat,
+                lng,
+                address: address || city,
                 phone,
-                gender
+                gender,
+                avatarUrl
             } as any, token)
 
             if (apiError || !profile) {
-                setError(apiError || 'Account created in Firebase, but failed to sync with our servers.')
+                // Rollback: delete the Firebase user if backend sync fails
+                try {
+                    await firebaseUser.delete();
+                } catch (rollbackErr) {
+                    console.error("Failed to rollback Firebase user:", rollbackErr);
+                }
+                setError(formatBackendError(apiError || 'Account created in Firebase, but failed to sync with our servers.'))
                 return
             }
 
-            // 4. Set Auth State & Redirect
-            setAuth(firebaseUser, token, profile as any)
-            setSignupSuccess(true)
-            router.push('/dashboard')
+            // 3. Send Verification Email & Poll
+            await sendEmailVerification(firebaseUser)
+            setIsWaitingForVerification(true)
+            setLoading(false)
+
+            const pollInterval = setInterval(async () => {
+                try {
+                    await firebaseUser.reload()
+                    if (firebaseUser.emailVerified) {
+                        clearInterval(pollInterval)
+                        setAuth(firebaseUser, token, profile as any)
+                        setSignupSuccess(true)
+                        router.push('/dashboard')
+                    }
+                } catch (err) {
+                    console.error("Polling error:", err)
+                    clearInterval(pollInterval)
+                }
+            }, 3000)
+
+            // Prevent the finally block from firing and removing loading state if something else happened.
+            return;
         } catch (err: any) {
             setError(firebaseErrorMessage(err))
-        } finally {
             setLoading(false)
         }
     }
@@ -281,7 +314,30 @@ export default function AuthPage() {
                 <h1 className="text-4xl font-bold mb-2 tracking-tight">Starto</h1>
                 <p className="text-gray-400 mb-8 text-sm">Where Ecosystems Connect.</p>
 
-                {/* Firebase misconfiguration warning — visible only on client after hydration */}
+                {isWaitingForVerification ? (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col items-center justify-center py-10"
+                    >
+                        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
+                            <svg className="w-8 h-8 text-primary animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Verify your email</h2>
+                        <p className="text-gray-400 mb-6 px-4">
+                            We've sent a verification link to <span className="text-white font-medium">{email}</span>. 
+                            Please check your inbox (and spam folder) and click the link to continue.
+                        </p>
+                        <div className="flex items-center gap-2 text-sm text-primary">
+                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            Waiting for verification...
+                        </div>
+                    </motion.div>
+                ) : (
+                    <>
+                        {/* Firebase misconfiguration warning — visible only on client after hydration */}
                 {firebaseBannerVisible && (
                     <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-6 text-left">
                         <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
@@ -361,81 +417,26 @@ export default function AuthPage() {
                         <motion.div key="forgot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4 text-left">
                             <h2 className="text-xl font-bold text-white mb-2 text-center">Reset Password</h2>
                             
-                            {forgotStep === 'phone' && (
-                                <form onSubmit={handleForgotPhoneSubmit} className="space-y-4">
-                                    <p className="text-sm text-gray-400 text-center mb-4">Enter your registered mobile number to receive an OTP.</p>
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Mobile Number</label>
-                                        <PhoneInput
-                                            international
-                                            defaultCountry="IN"
-                                            value={phone}
-                                            onChange={(val) => setPhone(val || '')}
-                                            className="phone-input-custom mt-2"
-                                        />
-                                    </div>
-                                    {error && <p className="text-red-500 text-xs flex items-center gap-1 font-medium"><AlertCircle className="w-3 h-3" /> {error}</p>}
-                                    <button type="submit" className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4">
-                                        Send OTP <ArrowRight className="w-4 h-4" />
-                                    </button>
-                                    <button type="button" onClick={() => switchMode('login')} className="w-full text-center text-xs text-gray-400 hover:text-white mt-4">Back to Login</button>
-                                </form>
-                            )}
-
-                            {forgotStep === 'otp' && (
-                                <form onSubmit={handleForgotOtpSubmit} className="space-y-4">
-                                    <p className="text-sm text-gray-400 text-center mb-4">Enter the 6-digit OTP sent to {phone}.<br/><span className="text-xs text-yellow-500">(Use 123456 for testing)</span></p>
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">OTP Code</label>
-                                        <input type="text" value={forgotOtp} onChange={e => setForgotOtp(e.target.value)} required maxLength={6} className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors text-center tracking-widest text-lg" />
-                                    </div>
-                                    {error && <p className="text-red-500 text-xs flex items-center gap-1 font-medium"><AlertCircle className="w-3 h-3" /> {error}</p>}
-                                    <button type="submit" className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4">
-                                        Verify OTP <ArrowRight className="w-4 h-4" />
-                                    </button>
-                                    <button type="button" onClick={() => setForgotStep('phone')} className="w-full text-center text-xs text-gray-400 hover:text-white mt-4">Change mobile number</button>
-                                </form>
-                            )}
-
-                            {forgotStep === 'reset' && (
-                                <form onSubmit={handleForgotResetSubmit} className="space-y-4">
-                                    <p className="text-sm text-gray-400 text-center mb-4">Create a new password for your account.</p>
-                                    <div>
-                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">New Password</label>
-                                        <div className="auth-input-container">
-                                            <input 
-                                                type={showPassword ? "text" : "password"} 
-                                                value={password} 
-                                                onChange={e => setPassword(e.target.value)} 
-                                                required 
-                                                className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
-                                            />
-                                            <div className="auth-input-icon mt-1" onClick={() => setShowPassword(!showPassword)}>
-                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4">
-                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Confirm New Password</label>
-                                        <div className="auth-input-container">
-                                            <input 
-                                                type={showConfirmPassword ? "text" : "password"} 
-                                                value={confirmPassword} 
-                                                onChange={e => setConfirmPassword(e.target.value)} 
-                                                required 
-                                                className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
-                                            />
-                                            <div className="auth-input-icon mt-1" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {error && <p className="text-red-500 text-xs flex items-center gap-1 font-medium"><AlertCircle className="w-3 h-3" /> {error}</p>}
-                                    <button type="submit" className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4">
-                                        Reset Password <ArrowRight className="w-4 h-4" />
-                                    </button>
-                                </form>
-                            )}
+                            <form onSubmit={handleForgotEmailSubmit} className="space-y-4">
+                                <p className="text-sm text-gray-400 text-center mb-4">Enter your registered email to receive a password reset link.</p>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email Address</label>
+                                    <input 
+                                        type="email" 
+                                        value={email} 
+                                        onChange={e => setEmail(e.target.value)} 
+                                        required 
+                                        className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors" 
+                                        placeholder="your@email.com"
+                                    />
+                                </div>
+                                {error && <p className="text-red-500 text-xs flex items-center gap-1 font-medium"><AlertCircle className="w-3 h-3" /> {error}</p>}
+                                <button disabled={loading} type="submit" className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4 disabled:opacity-50">
+                                    {loading ? 'Sending...' : 'Send Reset Link'}
+                                    {!loading && <ArrowRight className="w-4 h-4" />}
+                                </button>
+                                <button type="button" onClick={() => switchMode('login')} className="w-full text-center text-xs text-gray-400 hover:text-white mt-4">Back to Login</button>
+                            </form>
                         </motion.div>
                     )}
 
@@ -445,8 +446,8 @@ export default function AuthPage() {
                             <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
                                 <CheckCircle className="w-8 h-8 text-green-400" />
                             </div>
-                            <h2 className="text-xl font-bold text-white">Password Reset Successfully!</h2>
-                            <p className="text-sm text-gray-400">Your password has been updated. Please login again with your new password.</p>
+                            <h2 className="text-xl font-bold text-white">Reset Link Sent!</h2>
+                            <p className="text-sm text-gray-400">If an account exists with <span className="text-white font-medium">{email}</span>, you will receive a password reset link shortly. Please check your inbox and spam folder.</p>
                             <button
                                 onClick={() => switchMode('login')}
                                 className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4"
@@ -475,12 +476,101 @@ export default function AuthPage() {
                                 <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Role <span className="text-red-400">*</span></label>
                                 <select value={role} onChange={e => setRole(e.target.value)} required className={`w-full mt-2 bg-[#111] border border-white/10 rounded-lg px-4 py-3 outline-none focus:border-white/40 transition-colors appearance-none ${role === '' ? 'text-gray-500' : 'text-white'}`}>
                                     <option value="" disabled hidden>Select a role</option>
-                                    {ROLES.map(r => <option key={r} value={r} className="text-white">{r}</option>)}
+                                    {ROLES.map(r => <option key={r} value={r} className="text-white">{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
                                 </select>
+                                <p className="text-[10px] text-yellow-500/80 mt-1.5 flex items-center gap-1 font-medium italic">
+                                    <AlertCircle className="w-3 h-3" /> Note: Your role is permanent and cannot be changed later.
+                                </p>
                             </div>
                             <div>
-                                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Location (City) <span className="text-red-400">*</span></label>
-                                <CityAutocomplete value={city} onChange={setCity} />
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Location (City) <span className="text-red-400">*</span></label>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            if ("geolocation" in navigator) {
+                                                setIsDetecting(true);
+                                                navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                    const { latitude, longitude } = pos.coords;
+                                                    setLat(latitude);
+                                                    setLng(longitude);
+                                                    try {
+                                                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                                                        const data = await res.json();
+                                                        if (data.address) {
+                                                            const addr = data.address;
+                                                            const cityName = addr.city || addr.town || addr.village || addr.state || '';
+                                                            const fullAddr = data.display_name || [addr.suburb, addr.city, addr.state, addr.country].filter(Boolean).join(', ');
+                                                            setCity(cityName);
+                                                            setAddress(fullAddr);
+                                                        } else {
+                                                            setCity('Selected Location');
+                                                            setAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+                                                        }
+                                                    } catch (err) {
+                                                        setCity('Selected Location');
+                                                        setAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+                                                    }
+                                                    setIsDetecting(false);
+                                                }, () => setIsDetecting(false));
+                                            }
+                                        }}
+                                        className="text-[10px] font-bold text-primary uppercase hover:underline"
+                                    >
+                                        {isDetecting ? 'Detecting...' : 'Use my current location'}
+                                    </button>
+                                </div>
+                                <CityAutocomplete 
+                                    value={address || city} 
+                                    onChange={(name, lt, lg, fullAddr) => {
+                                        setCity(name);
+                                        if (lt) setLat(lt);
+                                        if (lg) setLng(lg);
+                                        if (fullAddr) setAddress(fullAddr);
+                                    }} 
+                                    inputClassName="bg-white/5 border-white/10 text-white focus:border-white/40 focus:bg-white/10"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3 block">Select Avatar</label>
+                                <div className="grid grid-cols-4 gap-3">
+                                    {[1, 2, 3, 4].map(num => {
+                                        const url = `/avatars/avatar${num}.svg`;
+                                        const isSelected = avatarUrl === url;
+                                        return (
+                                            <button 
+                                                key={num}
+                                                type="button"
+                                                onClick={() => setAvatarUrl(url)}
+                                                className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                                                    isSelected ? 'border-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]' : 'border-white/5 grayscale hover:grayscale-0'
+                                                }`}
+                                            >
+                                                <VerifiedAvatar 
+                                                    username={name || 'User'}
+                                                    avatarUrl={url}
+                                                    size="w-full h-full"
+                                                    className="!rounded-none"
+                                                />
+                                                {isSelected && <div className="absolute inset-0 bg-primary/20 flex items-center justify-center z-10"><CheckCircle className="w-5 h-5 text-black" /></div>}
+                                            </button>
+                                        );
+                                    })}
+                                    <button 
+                                        type="button"
+                                        onClick={() => setAvatarUrl(null)}
+                                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all flex flex-col items-center justify-center text-[10px] font-bold uppercase ${
+                                            !avatarUrl ? 'border-primary bg-primary/10 text-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.2)]' : 'border-white/5 text-gray-500 hover:border-white/20'
+                                        }`}
+                                    >
+                                        Initials
+                                        {!avatarUrl && <CheckCircle className="w-4 h-4 mt-1" />}
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-2 uppercase font-bold tracking-tight">
+                                    {avatarUrl ? 'Selected Platform Avatar' : 'No selection — using Letter DP instead'}
+                                </p>
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Mobile Number <span className="text-red-400">*</span></label>
@@ -564,6 +654,8 @@ export default function AuthPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+                </>
+                )}
             </motion.div>
         </div>
     )

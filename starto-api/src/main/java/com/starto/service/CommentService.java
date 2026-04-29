@@ -28,7 +28,7 @@ public class CommentService {
 
     //  add top level comment
     @Transactional
-    public Comment addComment(User user, UUID postId, String content) {
+    public CommentResponseDTO addComment(User user, UUID postId, String content) {
 
         //  Step 1: check Signal
         Signal signal = signalRepository.findById(postId).orElse(null);
@@ -42,10 +42,10 @@ public class CommentService {
                     .parentId(null)
                     .build();
 
-            commentRepository.save(comment);
+            Comment saved = commentRepository.save(comment);
 
-            //  increment only for signal
-            signal.setResponseCount(signal.getResponseCount() + 1);
+            // Increment signal response count
+            signal.setResponseCount((signal.getResponseCount() != null ? signal.getResponseCount() : 0) + 1);
             signalRepository.save(signal);
 
             notificationService.send(
@@ -56,28 +56,33 @@ public class CommentService {
                     null
             );
 
-            return comment;
+            return toDTO(saved);
         }
 
         //  Step 2: check NearbySpace
         NearbySpace space = nearbySpaceRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
-        //  TEMP: attach NULL signal (since your model requires it)
         Comment comment = Comment.builder()
-                .signal(null) 
+                .nearbySpace(space) 
                 .user(user)
                 .username(user.getUsername())
                 .content(content)
                 .parentId(null)
                 .build();
 
-        return commentRepository.save(comment);
+        Comment saved = commentRepository.save(comment);
+
+        // Increment space response count
+        space.setResponseCount((space.getResponseCount() != null ? space.getResponseCount() : 0) + 1);
+        nearbySpaceRepository.save(space);
+
+        return toDTO(saved);
     }
 
     //  reply to a comment
     @Transactional
-    public Comment addReply(User user, UUID postId, UUID parentId, String content) {
+    public CommentResponseDTO addReply(User user, UUID postId, UUID parentId, String content) {
 
         //  Step 1: check Signal
         Signal signal = signalRepository.findById(postId).orElse(null);
@@ -94,27 +99,34 @@ public class CommentService {
                     .parentId(parentId)
                     .build();
 
-            commentRepository.save(reply);
+            Comment saved = commentRepository.save(reply);
 
-            signal.setResponseCount(signal.getResponseCount() + 1);
+            // Increment signal response count
+            signal.setResponseCount((signal.getResponseCount() != null ? signal.getResponseCount() : 0) + 1);
             signalRepository.save(signal);
 
-            return reply;
+            return toDTO(saved);
         }
 
         //  Step 2: check NearbySpace
-        nearbySpaceRepository.findById(postId)
+        NearbySpace space = nearbySpaceRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
         Comment reply = Comment.builder()
-                .signal(null)
+                .nearbySpace(space)
                 .user(user)
                 .username(user.getUsername())
                 .content(content)
                 .parentId(parentId)
                 .build();
 
-        return commentRepository.save(reply);
+        Comment saved = commentRepository.save(reply);
+
+        // Increment space response count
+        space.setResponseCount((space.getResponseCount() != null ? space.getResponseCount() : 0) + 1);
+        nearbySpaceRepository.save(space);
+
+        return toDTO(saved);
     }
 
     //  delete comment
@@ -128,25 +140,41 @@ public class CommentService {
         }
 
         Signal signal = comment.getSignal();
+        NearbySpace space = comment.getNearbySpace();
 
         int totalDeleted = countAllReplies(comment) + 1;
 
         commentRepository.delete(comment);
 
-        //  only update if signal exists
+        //  update signal response count
         if (signal != null) {
-            signal.setResponseCount(Math.max(0, signal.getResponseCount() - totalDeleted));
+            signal.setResponseCount(Math.max(0, (signal.getResponseCount() != null ? signal.getResponseCount() : 0) - totalDeleted));
             signalRepository.save(signal);
+        }
+
+        // update space response count
+        if (space != null) {
+            space.setResponseCount(Math.max(0, (space.getResponseCount() != null ? space.getResponseCount() : 0) - totalDeleted));
+            nearbySpaceRepository.save(space);
         }
     }
 
     //  DTO conversion
     private CommentResponseDTO toDTO(Comment comment) {
+        // Since avatarUrl is a formula, it might be null on a newly saved object.
+        // We can get it from the user object if available.
+        String avatar = comment.getAvatarUrl();
+        if (avatar == null && comment.getUser() != null) {
+            avatar = comment.getUser().getAvatarUrl();
+        }
+        
         return CommentResponseDTO.builder()
                 .id(comment.getId())
-                .signalId(comment.getSignalId()) 
-                .userId(comment.getUserId())
+                .signalId(comment.getSignalId())
+                .spaceId(comment.getSpaceId())
+                .userId(comment.getUser() != null ? comment.getUser().getId() : comment.getUserId())
                 .username(comment.getUsername())
+                .avatarUrl(avatar)
                 .content(comment.getContent())
                 .parentId(comment.getParentId())
                 .createdAt(comment.getCreatedAt())
@@ -156,10 +184,13 @@ public class CommentService {
                 .build();
     }
 
-    public List<CommentResponseDTO> getComments(UUID signalId) {
-        return commentRepository
-                .findBySignalIdAndParentIdIsNullOrderByCreatedAtDesc(signalId)
-                .stream()
+    @Transactional(readOnly = true)
+    public List<CommentResponseDTO> getComments(UUID postId) {
+        List<Comment> comments = commentRepository.findBySignalIdAndParentIdIsNullOrderByCreatedAtDesc(postId);
+        if (comments.isEmpty()) {
+            comments = commentRepository.findBySpaceIdAndParentIdIsNullOrderByCreatedAtDesc(postId);
+        }
+        return comments.stream()
                 .map(this::toDTO)
                 .toList();
     }

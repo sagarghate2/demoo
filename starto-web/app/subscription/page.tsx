@@ -8,6 +8,9 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { usePaymentStore } from '@/store/usePaymentStore'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { subscriptionApi } from '@/lib/apiClient'
+import StatusModal from '@/components/feed/StatusModal'
+import Toast from '@/components/feed/Toast'
 
 const mainPlans = [
     {
@@ -17,7 +20,7 @@ const mainPlans = [
         duration: 'Forever',
         tag: 'Free',
         description: 'Perfect for individual exploration.',
-        features: ['3 signals per day', 'Limited network reach', 'Basic explore access'],
+        features: ['2 Active Signals', '3 Connection Offers', '3 AI Analysis calls per day'],
         icon: Rocket,
         highlight: false
     },
@@ -28,7 +31,7 @@ const mainPlans = [
         duration: '7 days',
         tag: 'Entry',
         description: 'Test all premium features.',
-        features: ['10 signals per day', 'Verified Identity', 'Full explore access'],
+        features: ['5 Active Signals', '10 Connection Offers', '5 AI Analysis calls'],
         icon: Zap,
         highlight: false
     },
@@ -39,7 +42,7 @@ const mainPlans = [
         duration: '7 days',
         tag: 'Entry',
         description: 'Focused growth burst.',
-        features: ['25 signals per day', 'Priority Discovery', 'Advanced AI Insights'],
+        features: ['5 Active Signals', '20 Connection Offers', '10 AI Analysis calls'],
         icon: Zap,
         highlight: false
     },
@@ -50,7 +53,7 @@ const mainPlans = [
         duration: '15 days',
         tag: 'Value',
         description: 'Maximize your visibility.',
-        features: ['50 signals per day', 'Profile Boost', 'Priority DM Access'],
+        features: ['8 Active Signals', 'Unlimited Offers', '15 AI Analysis calls'],
         icon: Sparkles,
         highlight: false
     },
@@ -62,7 +65,7 @@ const mainPlans = [
         tag: 'Anchor',
         popular: true,
         description: 'The standard for builders.',
-        features: ['100 signals per day', 'Black Verified Check', 'Premium Strategy AI'],
+        features: ['10 Active Signals', 'Unlimited Offers', '20 AI Analysis calls'],
         icon: Shield,
         highlight: true
     },
@@ -73,7 +76,7 @@ const mainPlans = [
         duration: '3 months',
         tag: 'Save',
         description: 'Scale your team and reach.',
-        features: ['300 signals per day', 'Intelligence Reports', 'Bulk Offer Access'],
+        features: ['Unlimited Signals', 'Unlimited Offers', '30 AI Analysis calls'],
         icon: Star,
         highlight: false
     },
@@ -84,7 +87,7 @@ const mainPlans = [
         duration: '6 months',
         tag: 'Save',
         description: 'Deep ecosystem integration.',
-        features: ['Unlimited signals', 'Market Demand Analytics', 'Founder Mentorship'],
+        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis'],
         icon: Rocket,
         highlight: false
     },
@@ -95,7 +98,7 @@ const mainPlans = [
         duration: '12 months',
         tag: 'Long Term',
         description: 'Commit to full dominance.',
-        features: ['Lifetime Legacy Badge', 'All Premium Features', 'Highest Priority Support'],
+        features: ['Unlimited Everything', 'Legacy Profile Badge', 'Priority Support'],
         icon: Sparkles,
         highlight: false
     }
@@ -109,18 +112,18 @@ const captainPlans = [
         duration: '1 month',
         tag: 'Leader',
         description: 'Build your own community hub.',
-        features: ['Communtiy Signal Control', 'Captain Badge', 'Revenue Sharing Access'],
+        features: ['10 Active Signals', 'Unlimited Offers', '20 AI Analysis calls'],
         icon: Crown,
         highlight: true
     },
     {
         id: 'CAPTAIN_PRO',
         name: 'Captain Pro',
-        price: 249,
-        duration: '1 month',
+        price: 799,
+        duration: '12 months',
         tag: 'Elite',
         description: 'Ultimate power for community builders.',
-        features: ['Global Node Visibility', 'Elite Captain Status', 'Dedicated Admin Suite'],
+        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis'],
         icon: Star,
         highlight: false
     }
@@ -135,16 +138,57 @@ export default function SubscriptionPage() {
     const [isUpgrading, setIsUpgrading] = useState(false)
     const [successPlan, setSuccessPlan] = useState<string | null>(null)
 
+    const [backendPlans, setBackendPlans] = useState<any[]>([])
+    const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: ''
+    })
+    const [toast, setToast] = useState<{isVisible: boolean, message: string, type: 'success' | 'error' | 'info'}>({
+        isVisible: false,
+        message: '',
+        type: 'success'
+    })
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToast({ isVisible: true, message, type })
+    }
+
     useEffect(() => {
         if (!isAuthenticated) {
             router.push('/auth')
+            return
         }
-    }, [isAuthenticated, router])
+
+        const loadData = async () => {
+            const { data: plans } = await subscriptionApi.getPlans();
+            if (plans) setBackendPlans(plans);
+            
+            const { data: status } = await subscriptionApi.getStatus();
+            if (status) {
+                updateUser({ plan: status.plan, planExpiresAt: status.expiresAt });
+            }
+        }
+        loadData();
+    }, [isAuthenticated, router, updateUser])
+
+    // Merge backend prices into local plan objects
+    const mergedMainPlans = mainPlans.map(lp => {
+        const bp = backendPlans.find(b => b.plan === lp.id);
+        return bp ? { ...lp, price: bp.amountRupees, duration: `${bp.durationDays} days` } : lp;
+    })
+
+    const mergedCaptainPlans = captainPlans.map(lp => {
+        const bp = backendPlans.find(b => b.plan === lp.id);
+        return bp ? { ...lp, price: bp.amountRupees, duration: `${bp.durationDays} days` } : lp;
+    })
+
+    const mergedAllPlans = [...mergedMainPlans, ...mergedCaptainPlans];
 
     const subscription = user?.subscription || user?.plan || 'Explorer'
 
     const handleUpgradeClick = (planName: string) => {
-        if (planName === subscription) return
         if (planName === 'Explorer') return
         setConfirmPlan(planName)
     }
@@ -153,55 +197,96 @@ export default function SubscriptionPage() {
         if (!confirmPlan) return
         setIsUpgrading(true)
         const addPayment = usePaymentStore.getState().addRecord
-        const planDetails = allPlans.find(p => p.name === confirmPlan)
+        const planDetails = mergedAllPlans.find(p => p.name === confirmPlan || p.id === confirmPlan)
 
         try {
-            const apiBase = typeof window !== 'undefined' && process.env.NODE_ENV === 'development'
-                ? ''
-                : (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080');
-            const response = await fetch(`${apiBase}/api/subscriptions/upgrade`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${await (await import('@/lib/apiClient')).getAuthToken()}`
-                },
-                body: JSON.stringify({ plan: planDetails?.id || confirmPlan })
-            })
-
-            if (response.ok) {
-                const data = await response.json()
-                updateUser({ plan: data.plan, subscription: data.plan })
-                addPayment({
-                    planName: confirmPlan,
-                    amount: planDetails?.price || 0,
-                    currency: '₹',
-                    dateTime: new Date().toLocaleString(),
-                    status: 'Successful'
+            // 1. Create order on backend
+            const { data: orderData, error: orderError } = await subscriptionApi.createOrder(planDetails?.id || confirmPlan);
+            
+            if (orderError || !orderData) {
+                setStatusModal({
+                    isOpen: true,
+                    type: 'error',
+                    title: 'Upgrade Failed',
+                    message: orderError || "Failed to initiate upgrade. Please try again."
                 })
-            } else {
-                updateUser({ plan: confirmPlan, subscription: confirmPlan })
-                addPayment({
-                    planName: confirmPlan,
-                    amount: planDetails?.price || 0,
-                    currency: '₹',
-                    dateTime: new Date().toLocaleString(),
-                    status: 'Successful' // Handling as success for local demo stability
-                })
+                setIsUpgrading(false);
+                return;
             }
-        } catch {
-            updateUser({ plan: confirmPlan, subscription: confirmPlan })
-            addPayment({
-                planName: confirmPlan,
-                amount: planDetails?.price || 0,
-                currency: '₹',
-                dateTime: new Date().toLocaleString(),
-                status: 'Failed'
-            })
-        }
 
-        setIsUpgrading(false)
-        setSuccessPlan(confirmPlan)
-        setConfirmPlan(null)
+            // 2. Open Razorpay Checkout
+            const options = {
+                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                amount: orderData.amountPaid,
+                currency: orderData.currency || "INR",
+                name: "Starto V2",
+                description: `Upgrade to ${confirmPlan}`,
+                order_id: orderData.razorpayOrderId,
+                handler: async (response: any) => {
+                    // 3. Verify payment on success
+                    const verifyPayload = {
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpaySubscriptionId: response.razorpay_subscription_id,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpaySignature: response.razorpay_signature,
+                    };
+                    
+                    const { error: verifyError } = await subscriptionApi.verifyPayment(verifyPayload);
+                    
+                    if (verifyError) {
+                        setStatusModal({
+                            isOpen: true,
+                            type: 'error',
+                            title: 'Verification Failed',
+                            message: "Payment verification failed. Please contact support."
+                        })
+                    } else {
+                        showToast("Subscription activated successfully!");
+                        // 4. Update local state on success
+                        updateUser({ plan: confirmPlan, subscription: confirmPlan });
+                        addPayment({
+                            planName: confirmPlan,
+                            amount: planDetails?.price || 0,
+                            currency: '₹',
+                            dateTime: new Date().toLocaleString(),
+                            status: 'Successful'
+                        });
+                        setSuccessPlan(confirmPlan);
+                        setConfirmPlan(null);
+                        
+                        // Refresh user status from backend
+                        const { data: status } = await subscriptionApi.getStatus();
+                        if (status) {
+                            updateUser({ plan: status.plan, planExpiresAt: status.expiresAt });
+                        }
+                    }
+                },
+                prefill: {
+                    name: user?.name,
+                    email: user?.email,
+                    contact: user?.phone
+                },
+                theme: { color: "#000000" },
+                modal: {
+                    ondismiss: () => {
+                        setIsUpgrading(false);
+                    }
+                }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+
+        } catch (err) {
+            console.error("Upgrade error:", err);
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Upgrade Error',
+                message: "An error occurred during upgrade. Please try again."
+            })
+            setIsUpgrading(false);
+        }
     }
 
     if (!isAuthenticated || !user) return (
@@ -265,7 +350,7 @@ export default function SubscriptionPage() {
                                 <h2 className="text-3xl font-display">Standard Tiers</h2>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {mainPlans.map((plan, idx) => (
+                                {mergedMainPlans.map((plan, idx) => (
                                     <PlanCard key={plan.name} plan={plan} idx={idx} currentPlan={subscription} onUpgrade={handleUpgradeClick} />
                                 ))}
                             </div>
@@ -302,7 +387,7 @@ export default function SubscriptionPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full lg:w-auto shrink-0">
-                                    {captainPlans.map((plan, idx) => (
+                                    {mergedCaptainPlans.map((plan, idx) => (
                                         <div key={plan.name} className={`p-8 rounded-[2rem] border transition-all duration-500 hover:scale-105 ${plan.highlight ? 'bg-white text-black border-white shadow-2xl' : 'bg-white/5 border-white/10 hover:border-white/30'}`}>
                                             <div className="mb-6">
                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${plan.highlight ? 'bg-black text-white' : 'bg-primary/20 text-primary'}`}>
@@ -316,10 +401,10 @@ export default function SubscriptionPage() {
                                             </div>
                                             <button
                                                 onClick={() => handleUpgradeClick(plan.name)}
-                                                disabled={subscription === plan.name}
-                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-30`}
+                                                disabled={plan.name === 'Explorer' || subscription?.toUpperCase() === plan.id?.toUpperCase()}
+                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'bg-green-500 text-white' : plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-50`}
                                             >
-                                                {subscription === plan.name ? '✓ Active' : `Join Program`}
+                                                {subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'Current Program' : `Join Program`}
                                             </button>
                                         </div>
                                     ))}
@@ -373,7 +458,7 @@ export default function SubscriptionPage() {
                                 <div className="flex justify-between items-center">
                                     <span className="text-text-secondary text-sm font-medium">Billed Amount</span>
                                     <div className="text-right">
-                                        <p className="text-xl font-mono font-bold leading-none">₹{allPlans.find(p => p.name === confirmPlan)?.price}</p>
+                                        <p className="text-xl font-mono font-bold leading-none">₹{mergedAllPlans.find(p => p.name === confirmPlan)?.price}</p>
                                         <p className="text-[10px] text-text-muted uppercase font-bold tracking-widest mt-1">One-time Upgrade</p>
                                     </div>
                                 </div>
@@ -406,12 +491,26 @@ export default function SubscriptionPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+            <StatusModal 
+                isOpen={statusModal.isOpen}
+                onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+            />
+
+            <Toast 
+                isVisible={toast.isVisible}
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
+            />
         </div>
     )
 }
 
 function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: number, currentPlan: string, onUpgrade: (n: string) => void }) {
-    const isActive = currentPlan === plan.name
+    const isActive = currentPlan?.toUpperCase() === plan.id?.toUpperCase()
     return (
         <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -447,8 +546,8 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
 
             <button
                 onClick={() => onUpgrade(plan.name)}
-                disabled={isActive || plan.name === 'Explorer'}
-                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-surface-2 text-text-muted cursor-default' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
+                disabled={plan.name === 'Explorer' || isActive}
+                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
             >
                 {isActive ? 'Current Plan' : plan.name === 'Explorer' ? 'Always Free' : 'Choose Plan'}
             </button>

@@ -90,6 +90,12 @@ public class SubscriptionController {
     String paymentId = body.get("razorpayPaymentId");
     String signature = body.get("razorpaySignature");
 
+    System.out.println("--- Payment Verification ---");
+    System.out.println("Order ID: " + orderId);
+    System.out.println("Sub ID: " + subscriptionId);
+    System.out.println("Payment ID: " + paymentId);
+    System.out.println("Signature: " + signature);
+
     //  ORDER FLOW
     if (orderId != null) {
         if (paymentId == null || signature == null) {

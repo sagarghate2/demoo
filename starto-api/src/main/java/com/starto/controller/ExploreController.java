@@ -92,4 +92,13 @@ public class ExploreController {
                             .body((Object) Map.of("error", "Something went wrong"));
                 });
     }
+
+    @GetMapping("/reports")
+    public ResponseEntity<Object> getReports(Authentication authentication) {
+        User user = getUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        return ResponseEntity.ok(exploreService.getReports(user.getId()));
+    }
 }

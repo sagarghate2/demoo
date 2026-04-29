@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/signals/{signalId}/comments")
+@RequestMapping("/api/comments")
 @RequiredArgsConstructor
 public class CommentController {
 
@@ -26,7 +26,7 @@ public class CommentController {
 
 
     //saving the comment into DB
-   @PostMapping
+   @PostMapping("/signal/{signalId}")
 public ResponseEntity<?> addComment(
         Authentication authentication,
         @PathVariable UUID signalId,
@@ -54,7 +54,7 @@ public ResponseEntity<?> addComment(
 
 
     //saving the reply comment into DB
-   @PostMapping("/{parentId}/reply")
+   @PostMapping("/signal/{signalId}/{parentId}/reply")
 public ResponseEntity<?> addReply(
         Authentication authentication,
         @PathVariable UUID signalId,
@@ -86,14 +86,14 @@ public ResponseEntity<?> addReply(
 
 
     //Get all comments on single signal
-    @GetMapping
+    @GetMapping("/signal/{signalId}")
     public ResponseEntity<List<CommentResponseDTO>> getComments(
             @PathVariable UUID signalId) {
         return ResponseEntity.ok(commentService.getComments(signalId));
     }
 
     //delete the comment
-   @DeleteMapping("/{commentId}")
+   @DeleteMapping("/signal/{signalId}/{commentId}")
 public ResponseEntity<?> deleteComment(
         Authentication authentication,
         @PathVariable UUID signalId,

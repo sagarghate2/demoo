@@ -20,6 +20,9 @@ public class ExploreResponse {
         private int score;
         private List<String> drivers;
         private List<String> sources;
+        private String growthIndex;
+        private String marketSaturation;
+        private String marketSummary;
     }
 
     @Data

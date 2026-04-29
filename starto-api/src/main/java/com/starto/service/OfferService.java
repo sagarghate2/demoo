@@ -4,6 +4,7 @@ import com.starto.dto.OfferRequestDTO;
 import com.starto.model.Offer;
 import com.starto.model.Signal;
 import com.starto.model.User;
+import com.starto.repository.ConnectionRepository;
 import com.starto.repository.OfferRepository;
 import com.starto.repository.SignalRepository;
 import com.starto.repository.UserRepository;
@@ -24,6 +25,7 @@ public class OfferService {
     private final OfferRepository offerRepository;
     private final SignalRepository signalRepository;
     private final UserRepository userRepository;
+    private final ConnectionRepository connectionRepository;
     private final WebSocketService webSocketService;
     private final NotificationService notificationService;
 
@@ -34,6 +36,11 @@ public Offer sendOffer(User talent, OfferRequestDTO dto) {
 
     Signal signal = signalRepository.findById(dto.getSignalId())
             .orElseThrow(() -> new RuntimeException("Signal not found"));
+
+    // block self-offer
+    if (signal.getUserId().equals(talent.getId())) {
+        throw new RuntimeException("You cannot send an offer to your own signal");
+    }
 
     //  one offer per signal
     offerRepository.findByRequesterIdAndSignalId(talent.getId(), signal.getId())
@@ -86,47 +93,76 @@ public Offer sendOffer(User talent, OfferRequestDTO dto) {
 }
 
     // founder accepts offer
-   @Transactional
-public Offer acceptOffer(User founder, UUID offerId) {
+    @Transactional
+    public Offer acceptOffer(User founder, UUID offerId) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
 
-    Offer offer = offerRepository.findById(offerId)
-            .orElseThrow(() -> new RuntimeException("Offer not found"));
+        if (!offer.getReceiver().getId().equals(founder.getId())) {
+            throw new RuntimeException("Not authorized to accept this offer");
+        }
 
-    //  only receiver can accept
-    if (!offer.getReceiver().getId().equals(founder.getId())) {
-        throw new RuntimeException("Not authorized to accept this offer");
+        if (!"PENDING".equalsIgnoreCase(offer.getStatus())) {
+            throw new RuntimeException("Offer is not in pending state");
+        }
+
+        offer.setStatus("ACCEPTED");
+        offer.setUpdatedAt(OffsetDateTime.now());
+        Offer updated = offerRepository.save(offer);
+
+        // CREATE CONNECTION
+        com.starto.model.Connection connection = com.starto.model.Connection.builder()
+                .requester(offer.getRequester())
+                .receiver(offer.getReceiver())
+                .signal(offer.getSignal())
+                .message("Connected via help offer: " + offer.getMessage())
+                .status("ACCEPTED")
+                .build();
+        connectionRepository.save(connection);
+
+        // INCREMENT NETWORK SIZE
+        User requester = offer.getRequester();
+        User rcv = offer.getReceiver();
+        if (requester.getNetworkSize() == null) requester.setNetworkSize(0);
+        if (rcv.getNetworkSize() == null) rcv.setNetworkSize(0);
+        requester.setNetworkSize(requester.getNetworkSize() + 1);
+        rcv.setNetworkSize(rcv.getNetworkSize() + 1);
+        userRepository.save(requester);
+        userRepository.save(rcv);
+
+        // Notify
+        webSocketService.send("/topic/offers/" + updated.getRequester().getId(), Map.of("type", "OFFER_ACCEPTED", "data", updated));
+        notificationService.send(updated.getRequester().getId(), "OFFER_ACCEPTED", "Offer Accepted!", "Your offer was accepted and a connection was created", null);
+
+        return updated;
     }
 
-    //  must be pending
-    if (!"PENDING".equalsIgnoreCase(offer.getStatus())) {
-        throw new RuntimeException("Offer is not in pending state");
+    // founder rejects offer
+    @Transactional
+    public Offer rejectOffer(User founder, UUID offerId) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+        if (!offer.getReceiver().getId().equals(founder.getId())) {
+            throw new RuntimeException("Not authorized to reject this offer");
+        }
+        offer.setStatus("REJECTED");
+        offer.setUpdatedAt(OffsetDateTime.now());
+        return offerRepository.save(offer);
     }
 
-    // update status
-    offer.setStatus("ACCEPTED");
-    offer.setUpdatedAt(OffsetDateTime.now());
-
-    Offer updated = offerRepository.save(offer);
-
-    //  notify talent
-    webSocketService.send(
-            "/topic/offers/" + updated.getRequester().getId(),
-            Map.of(
-                    "type", "OFFER_ACCEPTED",
-                    "data", updated
-            )
-    );
-
-    notificationService.send(
-    updated.getRequester().getId(),
-    "OFFER_ACCEPTED",
-    "Offer Accepted!",
-    "Your offer was accepted",
-    null
-);
-
-    return updated;
-}
+    @Transactional
+    public void deleteOffer(User user, UUID offerId) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+        
+        // Either requester can delete their sent offer, or receiver can delete received one
+        if (!offer.getRequester().getId().equals(user.getId()) && 
+            !offer.getReceiver().getId().equals(user.getId())) {
+            throw new RuntimeException("Not authorized to delete this offer");
+        }
+        
+        offerRepository.delete(offer);
+    }
 
     
 
@@ -176,7 +212,7 @@ public Offer acceptOffer(User founder, UUID offerId) {
                 .orElseThrow(() -> new RuntimeException("Offer not found"));
     }
 
-    public int countUserOffers(UUID userId) {
-    return offerRepository.countByRequesterId(userId);
+    public long countUserOffers(UUID userId, OffsetDateTime startDate) {
+    return offerRepository.countByRequesterIdAndCreatedAtAfter(userId, startDate);
 }
 }

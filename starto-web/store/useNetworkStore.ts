@@ -8,28 +8,34 @@ export interface Connection {
     status: string;
     message?: string;
     createdAt: string;
+    
     requesterId: string;
     requesterName: string;
     requesterUsername: string;
     requesterAvatarUrl?: string;
     requesterRole: string;
+    
     receiverId: string;
     receiverName: string;
     receiverUsername: string;
     receiverAvatarUrl?: string;
     receiverRole: string;
+    
     signalId?: string;
 }
 
 export interface Offer {
     id: string;
     signalId: string;
+    signalTitle?: string;
     requesterId: string;
     receiverId: string;
     requesterUsername: string;
     receiverUsername: string;
     requesterName: string;
     receiverName: string;
+    requesterAvatarUrl?: string;
+    receiverAvatarUrl?: string;
     organizationName: string;
     portfolioLink: string;
     message: string;
@@ -43,49 +49,36 @@ interface NetworkState {
     sentRequests: Connection[];      // outgoing requests
     offers: Offer[];
     
-    sendRequest: (signalId: string, message: string, targetUsername?: string) => Promise<void>;
+    sendRequest: (signalId: string | null, message: string, receiverId?: string, spaceId?: string | null) => Promise<void>;
     fetchRequests: () => Promise<void>;
     acceptRequest: (connectionId: string) => Promise<void>;
     rejectRequest: (connectionId: string) => Promise<void>;
     
     addOffer: (offer: Omit<Offer, 'id' | 'timestamp'>) => void;
     deleteOffer: (id: string) => void;
+    acceptOffer: (id: string) => Promise<void>;
+    rejectOffer: (id: string) => Promise<void>;
     clearAll: () => void;
 }
 
-export const useNetworkStore = create<NetworkState>()(
-    persist(
-        (set, get) => ({
-            connections: [],
-            pendingRequests: [],
-            sentRequests: [],
-            offers: [],
+export const useNetworkStore = create<NetworkState>((set, get) => ({
+    connections: [],
+    pendingRequests: [],
+    sentRequests: [],
+    offers: [],
 
-    sendRequest: async (signalId, message, targetUsername) => {
+    sendRequest: async (signalId, message, receiverId, spaceId) => {
         try {
-            const { error } = await connectionsApi.sendRequest(signalId, message, targetUsername);
+            const { error } = await connectionsApi.sendRequest(signalId, message, receiverId || '', spaceId);
             if (!error) {
                 await get().fetchRequests();
                 return;
             }
-            console.error('Backend sendRequest error:', error);
+            throw new Error(error);
         } catch (e) {
             console.error('Failed to send request:', e);
+            throw e;
         }
-        
-        // Fallback to local only on error or if no backend
-        set(state => ({
-            sentRequests: [
-                ...state.sentRequests.filter(r => r.username !== targetUsername), // replace if exists
-                {
-                    id: Date.now().toString(),
-                    username: targetUsername || 'unknown',
-                    category: 'General',
-                    timeAdded: Date.now(),
-                    status: 'pending'
-                }
-            ]
-        }));
     },
 
     fetchRequests: async () => {
@@ -95,40 +88,9 @@ export const useNetworkStore = create<NetworkState>()(
             connectionsApi.getAccepted()
         ]);
 
-        if (pendingRes.data) {
-            set({ pendingRequests: pendingRes.data.map(r => ({
-                id: r.id,
-                username: (r as any).requesterUsername || 'unknown',
-                category: r.category || 'General',
-                timeAdded: new Date(r.createdAt).getTime(),
-                status: r.status,
-                message: r.message
-            }))});
-        }
-
-        if (sentRes.data) {
-            set({ sentRequests: sentRes.data.map(r => ({
-                id: r.id,
-                username: (r as any).receiverUsername || 'unknown',
-                category: r.category || 'General',
-                timeAdded: new Date(r.createdAt).getTime(),
-                status: r.status,
-                message: r.message
-            }))});
-        }
-
-        if (acceptedRes.data) {
-            const currentUser = useAuthStore.getState().user?.username;
-            set({ connections: acceptedRes.data.map(r => ({
-                id: r.id,
-                username: (r as any).requesterUsername === currentUser 
-                    ? (r as any).receiverUsername 
-                    : (r as any).requesterUsername,
-                category: r.category || 'General',
-                timeAdded: new Date(r.createdAt).getTime(),
-                status: r.status,
-            }))});
-        }
+        if (pendingRes.data) set({ pendingRequests: pendingRes.data });
+        if (sentRes.data) set({ sentRequests: sentRes.data });
+        if (acceptedRes.data) set({ connections: acceptedRes.data });
     },
 
     fetchOffers: async () => {
@@ -140,9 +102,14 @@ export const useNetworkStore = create<NetworkState>()(
         }
     },
 
-    addOffer: async (offer: { signalId: string; organizationName: string; portfolioLink: string; message: string }) => {
+    addOffer: async (offer) => {
         try {
-            const { data } = await offersApi.create(offer);
+            const { data, error, status } = await offersApi.create(offer);
+            if (error) {
+                const err = new Error(error);
+                (err as any).status = status;
+                throw err;
+            }
             if (data) {
                 set((state) => ({ 
                     offers: [...state.offers, data] 
@@ -161,15 +128,7 @@ export const useNetworkStore = create<NetworkState>()(
         try {
             const { data } = await connectionsApi.getAccepted();
             if (data) {
-                set({ connections: data.map((r: any) => ({
-                    id: r.id,
-                    username: r.requesterUsername === currentUser 
-                        ? r.receiverUsername 
-                        : r.requesterUsername,
-                    category: r.category || 'General',
-                    timeAdded: new Date(r.createdAt).getTime(),
-                    status: r.status,
-                }))});
+                set({ connections: data });
             }
         } catch (error) {
             console.error('Failed to fetch connections:', error);
@@ -187,9 +146,8 @@ export const useNetworkStore = create<NetworkState>()(
             console.error('Failed to accept request:', error);
         }
         
-        // Fallback / local mode
         set(state => {
-            const req = state.pendingRequests.find(r => r.id === requestId || r.username === requestId);
+            const req = state.pendingRequests.find(r => r.id === requestId || r.requesterUsername === requestId);
             if (!req) return state;
             return {
                 pendingRequests: state.pendingRequests.filter(r => r !== req),
@@ -199,31 +157,87 @@ export const useNetworkStore = create<NetworkState>()(
     },
 
     rejectRequest: async (requestId) => {
+        // Optimistic update for both pending and accepted connections
+        set(state => ({
+            connections: state.connections.filter(c => c.id !== requestId),
+            pendingRequests: state.pendingRequests.filter(r => r.id !== requestId)
+        }));
+
         try {
             const { error } = await connectionsApi.reject(requestId);
             if (!error) {
                 await get().fetchRequests();
                 return;
+            } else {
+                // Rollback on error by refetching
+                await get().fetchRequests();
             }
         } catch (error) {
             console.error('Failed to reject request:', error);
+            await get().fetchRequests();
         }
-        
-        // Fallback / local mode
-        set(state => {
-            const req = state.pendingRequests.find(r => r.id === requestId || r.username === requestId);
-            if (!req) return state;
-            return {
-                pendingRequests: state.pendingRequests.filter(r => r !== req)
-            };
-        });
+    },
+
+    acceptOffer: async (offerId) => {
+        // Optimistic update
+        set(state => ({
+            offers: state.offers.map(o => o.id === offerId ? { ...o, status: 'ACCEPTED' } : o)
+        }));
+
+        try {
+            const { error } = await offersApi.accept(offerId);
+            if (!error) {
+                await get().fetchRequests();
+                await get().fetchOffers();
+            } else {
+                // Rollback or refetch on error
+                await get().fetchOffers();
+            }
+        } catch (error) {
+            console.error('Failed to accept offer:', error);
+            await get().fetchOffers();
+        }
+    },
+
+    rejectOffer: async (offerId) => {
+        // Optimistic update
+        set(state => ({
+            offers: state.offers.map(o => o.id === offerId ? { ...o, status: 'REJECTED' } : o)
+        }));
+
+        try {
+            const { error } = await offersApi.reject(offerId);
+            if (!error) {
+                await get().fetchOffers();
+            } else {
+                // Rollback on error
+                await get().fetchOffers();
+            }
+        } catch (error) {
+            console.error('Failed to reject offer:', error);
+            await get().fetchOffers();
+        }
+    },
+
+    deleteOffer: async (offerId) => {
+        // Optimistic update
+        set(state => ({
+            offers: state.offers.filter(o => o.id !== offerId)
+        }));
+
+        try {
+            const { error } = await offersApi.delete(offerId);
+            if (!error) {
+                await get().fetchOffers();
+            } else {
+                // Rollback on error
+                await get().fetchOffers();
+            }
+        } catch (error) {
+            console.error('Failed to delete offer:', error);
+            await get().fetchOffers();
+        }
     },
             
-            clearAll: () => set({ connections: [], pendingRequests: [], sentRequests: [], offers: [] }),
-        }),
-        {
-            name: 'starto-network-storage',
-            storage: createJSONStorage(() => localStorage),
-        }
-    )
-)
+    clearAll: () => set({ connections: [], pendingRequests: [], sentRequests: [], offers: [] }),
+}))

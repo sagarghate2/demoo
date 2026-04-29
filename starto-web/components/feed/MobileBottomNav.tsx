@@ -22,7 +22,7 @@ export default function MobileBottomNav() {
     const hasViews = user && ((pendingRequests?.length || 0) > 0 || (offers?.length || 0) > 0);
 
     return (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border z-50 flex items-center justify-around px-2 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border z-50 flex items-center justify-around px-2 shadow-[0_-4px_15px_-10px_rgba(0,0,0,0.05)]">
             {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || (item.href !== '/feed' && pathname.startsWith(item.href))

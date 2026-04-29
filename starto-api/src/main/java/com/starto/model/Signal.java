@@ -47,6 +47,15 @@ private UUID userId;
 @Formula("(SELECT u.username FROM users u WHERE u.id = user_id)")
 private String username;
 
+@Formula("(SELECT u.role FROM users u WHERE u.id = user_id)")
+private String userRole;
+
+@Formula("(SELECT u.avatar_url FROM users u WHERE u.id = user_id)")
+private String avatarUrl;
+
+@Formula("(SELECT u.plan FROM users u WHERE u.id = user_id)")
+private String userPlan;
+
     @Column(nullable = false, length = 50)
     private String type;
 
@@ -73,13 +82,6 @@ private String username;
 
     @Column(name = "timeline_days")
     private Integer timelineDays;
-
-    @Column(length = 100)
-    private String compensation;
-
-    @Column(length = 20)
-    @Builder.Default
-    private String visibility = "global";
 
     @Column(length = 20)
     @Builder.Default
@@ -123,5 +125,8 @@ private String username;
   private String seeking;
 
 
+
+    @Column(length = 255)
+    private String address;
 
 }

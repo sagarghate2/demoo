@@ -1,9 +1,11 @@
 package com.starto.service;
 
 import com.starto.model.Connection;
+import com.starto.model.NearbySpace;
 import com.starto.model.Signal;
 import com.starto.model.User;
 import com.starto.repository.ConnectionRepository;
+import com.starto.repository.NearbySpaceRepository;
 import com.starto.repository.SignalRepository;
 import com.starto.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ public class ConnectionService {
 
     private final ConnectionRepository connectionRepository;
     private final SignalRepository signalRepository;
+    private final NearbySpaceRepository nearbySpaceRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
@@ -29,6 +32,7 @@ public class ConnectionService {
 public Connection sendRequest(User sender,
                               UUID receiverId,
                               UUID signalId,
+                              UUID spaceId,
                               String message) {
 
     User receiver;
@@ -39,10 +43,20 @@ public Connection sendRequest(User sender,
         Signal signal = signalRepository.findById(signalId)
                 .orElseThrow(() -> new RuntimeException("Signal not found"));
 
-        receiver = signal.getUser();
+        receiver = userRepository.findById(signal.getUser().getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    // CASE 2: PROFILE BASED REQUEST
+    // CASE 2: SPACE BASED REQUEST
+    else if (spaceId != null) {
+        NearbySpace space = nearbySpaceRepository.findById(spaceId)
+                .orElseThrow(() -> new RuntimeException("Space not found"));
+
+        receiver = userRepository.findById(space.getUser().getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    // CASE 3: PROFILE BASED REQUEST
     else if (receiverId != null) {
 
         receiver = userRepository.findById(receiverId)
@@ -51,7 +65,7 @@ public Connection sendRequest(User sender,
 
     //  invalid request
     else {
-        throw new RuntimeException("receiverId or signalId required");
+        throw new RuntimeException("receiverId, signalId, or spaceId required");
     }
 
     // prevent self request
@@ -59,16 +73,19 @@ public Connection sendRequest(User sender,
         throw new RuntimeException("Cannot send request to yourself");
     }
 
-    // duplicate check
-    boolean exists = connectionRepository
-            .existsByRequester_IdAndReceiver_IdAndStatus(
-                    sender.getId(),
-                    receiver.getId(),
-                    "PENDING"
-            );
+    // Check if requester -> receiver already exists (PENDING or ACCEPTED)
+    boolean alreadySentOrConnected = connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(sender.getId(), receiver.getId(), "PENDING")
+            || connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(sender.getId(), receiver.getId(), "ACCEPTED")
+            || connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(receiver.getId(), sender.getId(), "ACCEPTED");
 
-    if (exists) {
-        throw new RuntimeException("Request already exists");
+    if (alreadySentOrConnected) {
+        throw new RuntimeException("You are already connected or have a pending request with this person");
+    }
+
+    // Check if receiver -> requester already exists (PENDING)
+    boolean alreadyIncoming = connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(receiver.getId(), sender.getId(), "PENDING");
+    if (alreadyIncoming) {
+        throw new RuntimeException("This person has already sent you a connection request. Please check your network inbox.");
     }
 
     Connection connection = Connection.builder()
@@ -77,11 +94,18 @@ public Connection sendRequest(User sender,
             .signal(signalId != null
                     ? signalRepository.findById(signalId).orElse(null)
                     : null)
+            .nearbySpace(spaceId != null
+                    ? nearbySpaceRepository.findById(spaceId).orElse(null)
+                    : null)
             .message(message)
             .status("PENDING")
             .build();
 
-    return connectionRepository.save(connection);
+    Connection saved = connectionRepository.save(connection);
+
+    // Refresh from DB with JOIN FETCH to ensure all formula fields and proxies are initialized
+    return connectionRepository.findByIdWithUsers(saved.getId())
+            .orElse(saved);
 }
 
    
@@ -106,13 +130,26 @@ public Connection sendRequest(User sender,
         connection.setStatus("ACCEPTED");
         connection.setUpdatedAt(OffsetDateTime.now());
 
+        // Increment networkSize for both users
+        User requester = connection.getRequester();
+        User rcv = connection.getReceiver();
+        
+        if (requester.getNetworkSize() == null) requester.setNetworkSize(0);
+        if (rcv.getNetworkSize() == null) rcv.setNetworkSize(0);
+        
+        requester.setNetworkSize(requester.getNetworkSize() + 1);
+        rcv.setNetworkSize(rcv.getNetworkSize() + 1);
+        
+        userRepository.save(requester);
+        userRepository.save(rcv);
+
         notificationService.send(
-    connection.getRequester().getId(),
-    "CONNECTION_ACCEPTED",
-    "Connection Accepted!",
-    connection.getReceiver().getName() + " accepted your request",
-    null
-);
+            connection.getRequester().getId(),
+            "CONNECTION_ACCEPTED",
+            "Connection Accepted!",
+            connection.getReceiver().getName() + " accepted your request",
+            null
+        );
 
         return connectionRepository.save(connection);
     }
@@ -121,17 +158,40 @@ public Connection sendRequest(User sender,
     // REJECT REQUEST
 
     @Transactional
-    public Connection rejectRequest(User receiver, UUID connectionId) {
+    public Connection rejectRequest(User user, UUID connectionId) {
 
         Connection connection = connectionRepository.findById(connectionId)
                 .orElseThrow(() -> new RuntimeException("Connection not found"));
 
-        if (!connection.getReceiver().getId().equals(receiver.getId())) {
+        boolean isReceiver = connection.getReceiver().getId().equals(user.getId());
+        boolean isRequester = connection.getRequester().getId().equals(user.getId());
+
+        if (!isReceiver && !isRequester) {
             throw new RuntimeException("Forbidden");
         }
 
-        if (!"PENDING".equalsIgnoreCase(connection.getStatus())) {
-            throw new RuntimeException("Request not pending");
+        if ("PENDING".equalsIgnoreCase(connection.getStatus())) {
+            // Only receiver can reject a pending incoming request
+            if (!isReceiver) {
+                throw new RuntimeException("Only the receiver can reject a pending request");
+            }
+        } else if ("ACCEPTED".equalsIgnoreCase(connection.getStatus())) {
+            // Either party can remove an active connection
+            // Decrement networkSize for both users
+            User requester = connection.getRequester();
+            User rcv = connection.getReceiver();
+            
+            if (requester.getNetworkSize() != null && requester.getNetworkSize() > 0) {
+                requester.setNetworkSize(requester.getNetworkSize() - 1);
+            }
+            if (rcv.getNetworkSize() != null && rcv.getNetworkSize() > 0) {
+                rcv.setNetworkSize(rcv.getNetworkSize() - 1);
+            }
+            
+            userRepository.save(requester);
+            userRepository.save(rcv);
+        } else {
+            throw new RuntimeException("Connection cannot be rejected in its current state");
         }
 
         connection.setStatus("REJECTED");

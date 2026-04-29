@@ -29,6 +29,7 @@ public class PublicUserDTO {
     private Integer signalCount;
     private Integer networkSize;
     private String networkTier;
+    private java.time.OffsetDateTime planExpiresAt;
 
     // no email, no phone, no fcmToken, no firebaseUid
 
@@ -55,6 +56,7 @@ public class PublicUserDTO {
                 .signalCount(user.getSignalCount())
                 .networkSize(user.getNetworkSize())
                 .networkTier(user.getNetworkTier())
+                .planExpiresAt(user.getPlanExpiresAt())
                 .build();
     }
 }

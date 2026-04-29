@@ -32,7 +32,7 @@ public class PlanConfig {
     );
 
     public static final Map<Plan, Integer> MAX_AI_CALLS = Map.of(
-        Plan.EXPLORER, 0,
+        Plan.EXPLORER, 3,
         Plan.TRIAL,5,
         Plan.SPRINT, 10,
         Plan.BOOST, 15,

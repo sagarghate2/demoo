@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/feed/Sidebar'
 import MobileBottomNav from '@/components/feed/MobileBottomNav'
 import SignalCard from '@/components/feed/SignalCard'
-import { Plus, Search, Loader2, WifiOff, RefreshCw, X } from 'lucide-react'
+import { Plus, Search, Loader2, WifiOff, RefreshCw, X, Building } from 'lucide-react'
 import RaiseSignalModal from '@/components/feed/RaiseSignalModal'
+import CreateSpaceModal from '@/components/feed/CreateSpaceModal'
 import { useSignalStore, Signal, getSignalExpiration } from '@/store/useSignalStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
@@ -39,18 +40,20 @@ function formatInstagramTime(createdAt?: any) {
     return 'now';
 }
 
-// Map backend ApiSignal → the shape SignalCard expects
-function mapApiSignalToCard(s: ApiSignal) {
+// Map backend ApiUnifiedPost → the shape SignalCard expects
+function mapApiSignalToCard(s: any) {
     const timeAgo = formatInstagramTime(s.createdAt);
 
     return {
         id: s.id,
+        type: s.type, // SIGNAL or SPACE
         title: s.title || '(Untitled)',
         username: s.username || 'unknown',
+        userId: s.userId,
         timeAgo,
         category: s.category || 'General',
         description: s.description || '',
-        strength: s.signalStrength || '7 Days',
+        strength: s.type === 'SPACE' ? (s.spaceType || 'Space') : (s.signalStrength || '7 Days'),
         stats: {
             responses: s.responseCount ?? 0,
             offers: s.offerCount ?? 0,
@@ -58,7 +61,15 @@ function mapApiSignalToCard(s: ApiSignal) {
         },
         userPlan: s.userPlan || 'free',
         createdAt: s.createdAt,
-        signalStrength: s.signalStrength
+        signalStrength: s.signalStrength,
+        
+        // Space specific
+        city: s.city,
+        state: s.state,
+        address: s.address,
+        website: s.website,
+        contact: s.contact,
+        avatarUrl: s.avatarUrl
     }
 }
 
@@ -74,6 +85,7 @@ export default function HomeFeed() {
     const [loading, setLoading] = useState(true)
     const [backendError, setBackendError] = useState<string | null>(null)
     const [isRaiseModalOpen, setIsRaiseModalOpen] = useState(false)
+    const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false)
     const [refreshKey, setRefreshKey] = useState(0)
 
     // Debounced search
@@ -96,6 +108,7 @@ export default function HomeFeed() {
             if (error || data === null) {
                 setBackendError(error || 'Could not reach backend')
             } else {
+                console.log('[DEBUG] API Signals:', data);
                 setApiSignals(Array.isArray(data) ? data : [])
             }
             setLoading(false)
@@ -131,9 +144,9 @@ export default function HomeFeed() {
 
                 {/* Signals Feed */}
                 <main className="flex-1 max-w-2xl w-full px-4 py-8 md:overflow-y-auto border-r border-border">
-                    <header className="mb-8 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-background/90 backdrop-blur-md sticky top-0 z-20 py-4 -mx-4 px-4 border-b border-border shadow-sm">
+                    <header className="mb-8 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-background/90 backdrop-blur-md sticky top-0 z-20 py-4 -mx-4 px-4 border-b border-border">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-bold font-display tracking-tight text-black">Signals Feed</h1>
+                            <h1 className="text-2xl font-display tracking-tight text-black">Signals Feed</h1>
 
                             {/* Backend status and local mode notice moved into header for compactness */}
                             {!loading && backendError && (
@@ -173,6 +186,13 @@ export default function HomeFeed() {
                                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
+                                onClick={() => requireAuth(() => setIsSpaceModalOpen(true))}
+                                className="bg-white text-black border border-border px-4 py-2 rounded-full flex items-center gap-2 hover:bg-surface-2 transition-all shrink-0 shadow-sm"
+                            >
+                                <Building className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Space</span>
+                            </button>
+                            <button
                                 onClick={() => requireAuth(() => setIsRaiseModalOpen(true))}
                                 className="bg-black text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-black/90 transition-all shrink-0 shadow-sm"
                             >
@@ -187,8 +207,16 @@ export default function HomeFeed() {
                         <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 flex items-start gap-2">
                             <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
                             <span>
-                                <strong>Backend unreachable:</strong> {backendError}. Showing local signals only.
-                                Make sure the Spring Boot server is running at <code className="font-mono bg-orange-100 px-1 rounded">localhost:9090</code>.
+                                {backendError.toLowerCase().includes('expired') || backendError.toLowerCase().includes('token') ? (
+                                    <>
+                                        <strong>Session expired.</strong> Please <a href="/auth" className="underline font-semibold text-black hover:text-primary">login again</a> to view your personalized feed.
+                                    </>
+                                ) : (
+                                    <>
+                                        <strong>Backend unreachable:</strong> {backendError}. Showing local signals only.
+                                        Make sure the Spring Boot server is running at <code className="font-mono bg-orange-100 px-1 rounded">localhost:8080</code>.
+                                    </>
+                                )}
                             </span>
                         </div>
                     )}
@@ -209,17 +237,8 @@ export default function HomeFeed() {
                             {displaySignals.map(signal => (
                                 <SignalCard
                                     key={signal.id}
-                                    id={signal.id}
-                                    title={signal.title}
-                                    username={signal.username}
-                                    timeAgo={signal.timeAgo}
-                                    category={signal.category}
-                                    description={signal.description}
-                                    strength={signal.strength || (signal as any).signalStrength}
-                                    stats={signal.stats}
+                                    {...signal}
                                     hideViews={true}
-                                    userPlan={signal.userPlan}
-                                    createdAt={signal.createdAt}
                                     onRefresh={() => setRefreshKey(k => k + 1)}
                                 />
                             ))}
@@ -237,19 +256,20 @@ export default function HomeFeed() {
                         </button>
                     </div>
 
-                    <div
-                        onClick={() => router.push('/subscription')}
-                        className="bg-white border border-border p-6 rounded-xl cursor-pointer hover:border-primary hover:shadow-md transition-all group relative overflow-hidden"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 relative z-10">Sponsored</p>
-                        <h3 className="font-display text-base mb-1 relative z-10">Want to run ads here?</h3>
-                        <p className="text-text-secondary text-xs mb-4 relative z-10 leading-relaxed">Reach 1000s of founders, investors &amp; mentors in our ecosystem.</p>
+                    <div className="bg-white border border-border border-dashed p-6 rounded-xl shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-3 right-3">
+                            <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-3 opacity-50">Ad Network</p>
+                        <h3 className="font-display text-base mb-1">Targeted ecosystem ads</h3>
+                        <p className="text-text-secondary text-xs mb-4 leading-relaxed">Reach 1000s of founders, investors &amp; mentors directly in their feed.</p>
                         <button
-                            onClick={() => router.push('/subscription')}
-                            className="w-full bg-black text-white py-3 rounded-md font-medium text-sm flex items-center justify-center gap-2 hover:opacity-80 relative z-10 transition-opacity"
+                            disabled
+                            className="w-full bg-surface-2 text-text-muted py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-not-allowed border border-border transition-all"
                         >
-                            Get started →
+                            Coming Soon
                         </button>
                     </div>
                 </aside>
@@ -259,6 +279,13 @@ export default function HomeFeed() {
                     onClose={() => {
                         setIsRaiseModalOpen(false)
                         // Refresh feed after signal creation attempt
+                        setRefreshKey(k => k + 1)
+                    }}
+                />
+                <CreateSpaceModal 
+                    isOpen={isSpaceModalOpen}
+                    onClose={() => {
+                        setIsSpaceModalOpen(false)
                         setRefreshKey(k => k + 1)
                     }}
                 />

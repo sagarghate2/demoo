@@ -20,46 +20,45 @@ if ($jdkPath) {
     if ($javaPath) {
         $env:JAVA_HOME = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetDirectoryName($javaPath))
     } else {
-        # Fix #2: runtime must be Java 21 (LTS). Install JDK 21 if missing.
-        $env:JAVA_HOME = "C:\Program Files\Java\jdk-21" # Fallback — requires JDK 21
+        # Fallback — requires JDK 17+
+        $env:JAVA_HOME = "C:\Program Files\Java\jdk-17"
     }
 }
 $env:Path = "$env:JAVA_HOME\bin;" + $env:Path
 
 # Set Default Environment Variables for Local Development
-# NOTE: names must match ${...} placeholders in application.yml
 $env:DB_URL      = if ($env:DB_URL)      { $env:DB_URL }      else { "jdbc:postgresql://localhost:5432/starto" }
 $env:DB_USERNAME = if ($env:DB_USERNAME) { $env:DB_USERNAME } else { "postgres" }
-$env:DB_PASSWORD = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { "password" }
+$env:DB_PASSWORD = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { "admin" }
 $env:REDIS_HOST  = if ($env:REDIS_HOST)  { $env:REDIS_HOST }  else { "localhost" }
 $env:REDIS_PORT  = if ($env:REDIS_PORT)  { $env:REDIS_PORT }  else { "6379" }
-$env:PORT        = if ($env:PORT)        { $env:PORT }        else { "8080" }
-# CORS: allow both localhost:3000 (Next.js) and localhost:8080 for local dev
-$env:ALLOWED_ORIGINS = if ($env:ALLOWED_ORIGINS) { $env:ALLOWED_ORIGINS } else { "http://localhost:3000,http://localhost:8080" }
-# DDL: use 'update' locally so Hibernate creates/migrates tables automatically
-$env:SPRING_JPA_HIBERNATE_DDL_AUTO = if ($env:SPRING_JPA_HIBERNATE_DDL_AUTO) { $env:SPRING_JPA_HIBERNATE_DDL_AUTO } else { "update" }
-# Point to the firebase-service-account.json bundled inside starto-api resources
+$env:PORT        = "9090"
+$env:ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:9090"
+$env:SPRING_JPA_HIBERNATE_DDL_AUTO = if ($env:SPRING_JPA_HIBERNATE_DDL_AUTO) { $env:SPRING_JPA_HIBERNATE_DDL_AUTO } else { $null } # Allow application.yml default or ENV override
 $env:FIREBASE_CONFIG_PATH = "$PSScriptRoot\starto-api\src\main\resources\firebase-service-account.json"
-$env:OPENAI_API_KEY       = if ($env:OPENAI_API_KEY)  { $env:OPENAI_API_KEY }  else { "dummy_openai_key" }
-$env:GEMINI_API_KEY       = if ($env:GEMINI_API_KEY)  { $env:GEMINI_API_KEY }  else { "dummy_gemini_key" }
-$env:GOOGLE_MAPS_API_KEY  = if ($env:GOOGLE_MAPS_API_KEY) { $env:GOOGLE_MAPS_API_KEY } else { "dummy_maps_key" }
-$env:RAZORPAY_KEY_ID      = if ($env:RAZORPAY_KEY_ID) { $env:RAZORPAY_KEY_ID } else { "dummy_rzp_key" }
-$env:RAZORPAY_KEY_SECRET  = if ($env:RAZORPAY_KEY_SECRET) { $env:RAZORPAY_KEY_SECRET } else { "dummy_rzp_secret" }
 
-if (-not (Test-Path $MAVEN_DIR)) {
-    New-Item -ItemType Directory -Path $MAVEN_DIR | Out-Null
-}
+# Priority 1: System Maven
+$MVN_CMD = where.exe mvn | Select-Object -First 1
 
-if (-not (Test-Path $MVN_BIN)) {
-    Write-Host "Maven not found. Downloading Maven $MAVEN_VERSION..." -ForegroundColor Cyan
-    $url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$MAVEN_VERSION/apache-maven-$MAVEN_VERSION-bin.zip"
-    Invoke-WebRequest -Uri $url -OutFile $MAVEN_ZIP
-    
-    Write-Host "Extracting Maven..." -ForegroundColor Cyan
-    Expand-Archive -Path $MAVEN_ZIP -DestinationPath $MAVEN_DIR
-    Remove-Item $MAVEN_ZIP
+# Priority 2: Local Maven (download if missing)
+if ($null -eq $MVN_CMD) {
+    if (-not (Test-Path $MAVEN_DIR)) {
+        New-Item -ItemType Directory -Path $MAVEN_DIR | Out-Null
+    }
+
+    if (-not (Test-Path $MVN_BIN)) {
+        Write-Host "Maven not found. Downloading Maven $MAVEN_VERSION..." -ForegroundColor Cyan
+        $url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$MAVEN_VERSION/apache-maven-$MAVEN_VERSION-bin.zip"
+        Invoke-WebRequest -Uri $url -OutFile $MAVEN_ZIP
+        
+        Write-Host "Extracting Maven..." -ForegroundColor Cyan
+        Expand-Archive -Path $MAVEN_ZIP -DestinationPath $MAVEN_DIR
+        Remove-Item $MAVEN_ZIP
+    }
+    $MVN_CMD = $MVN_BIN
 }
 
 Write-Host "Starting Starto V2 Backend..." -ForegroundColor Green
+Write-Host "Using Maven: $MVN_CMD" -ForegroundColor Gray
 Set-Location -Path "$PSScriptRoot\starto-api"
-& $MVN_BIN spring-boot:run
+& $MVN_CMD spring-boot:run

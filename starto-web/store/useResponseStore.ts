@@ -17,26 +17,18 @@ interface ResponseState {
     clearAll: () => void;
 }
 
-export const useResponseStore = create<ResponseState>()(
-    persist(
-        (set, get) => ({
-            responses: [],
-            addResponse: (r) => set((state) => {
-                if (state.responses.some(existing => existing.signalId === r.signalId)) return state;
-                return {
-                    responses: [{
-                        ...r,
-                        id: Date.now().toString(),
-                        respondedAt: Date.now(),
-                    }, ...state.responses]
-                }
-            }),
-            hasResponded: (signalId) => get().responses.some(r => r.signalId === signalId),
-            clearAll: () => set({ responses: [] }),
-        }),
-        {
-            name: 'starto-response-storage',
-            storage: createJSONStorage(() => localStorage),
+export const useResponseStore = create<ResponseState>((set, get) => ({
+    responses: [],
+    addResponse: (r) => set((state) => {
+        if (state.responses.some(existing => existing.signalId === r.signalId)) return state;
+        return {
+            responses: [{
+                ...r,
+                id: Date.now().toString(),
+                respondedAt: Date.now(),
+            }, ...state.responses]
         }
-    )
-)
+    }),
+    hasResponded: (signalId) => get().responses.some(r => r.signalId === signalId),
+    clearAll: () => set({ responses: [] }),
+}))

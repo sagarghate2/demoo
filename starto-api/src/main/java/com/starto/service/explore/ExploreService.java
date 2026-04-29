@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.starto.dto.ExploreRequest;
 import com.starto.dto.ExploreResponse;
 import com.starto.model.AiUsage;
+import com.starto.model.ExploreReport;
+import com.starto.model.User;
 import com.starto.repository.AiUsageRepository;
+import com.starto.repository.ExploreReportRepository;
+import com.starto.repository.UserRepository;
 import com.starto.service.explore.LocationService;
 import com.starto.service.manager.AIManager;
 
@@ -32,6 +36,8 @@ public class ExploreService {
     private final LocationService locationService;
     private final WebSocketService webSocketService;
     private final AiUsageRepository aiUsageRepository;
+    private final ExploreReportRepository exploreReportRepository;
+    private final UserRepository userRepository;
 
     @Cacheable(
         value = "exploreCache",
@@ -61,7 +67,44 @@ public class ExploreService {
             webSocketService.send("/topic/explore/" + userId,
                     Map.of("status", "complete", "message", "Analysis complete!", "progress", 100));
 
-            return parse(aiResponse, aiResponse);
+            ExploreResponse response = parse(aiResponse, aiResponse);
+            
+            // FETCH REAL COMPETITORS FROM GOOGLE MAPS
+            try {
+                List<ExploreResponse.Competitor> realCompetitors = locationService.getCompetitors(request.getIndustry(), request.getLocation());
+                if (realCompetitors != null && !realCompetitors.isEmpty()) {
+                    response.setCompetitors(realCompetitors);
+                    System.out.println("INJECTED " + realCompetitors.size() + " REAL COMPETITORS FROM GOOGLE MAPS");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to inject real competitors", e);
+            }
+
+            // SAVE TO DB
+            try {
+                User user = userRepository.findById(UUID.fromString(userId)).orElse(null);
+                if (user != null) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    String fullJson = mapper.writeValueAsString(response);
+                    
+                    ExploreReport report = ExploreReport.builder()
+                            .user(user)
+                            .location(request.getLocation())
+                            .industry(request.getIndustry())
+                            .budget(request.getBudget())
+                            .stage(request.getStage())
+                            .targetCustomer(request.getTargetCustomer())
+                            .reportData(fullJson)
+                            .build();
+                    
+                    exploreReportRepository.save(report);
+                    log.info("Explore report saved for user: {}", userId);
+                }
+            } catch (Exception e) {
+                log.error("Failed to save explore report", e);
+            }
+
+            return response;
 
         } catch (Exception e) {
             System.out.println("ANALYZE EXCEPTION: " + e.getMessage());
@@ -73,21 +116,33 @@ public class ExploreService {
     }
 
     private String buildGptPrompt(ExploreRequest req, String locationData) {
-        return "You are a strict JSON generator. Return ONLY valid JSON, no explanation, no markdown.\n\n" +
-                "Analyze market for " + req.getIndustry() +
-                " in " + req.getLocation() +
-                " with budget " + req.getBudget() +
-                " at stage " + req.getStage() +
-                ". Target customer: " + req.getTargetCustomer() +
-                ". Location context: " + locationData + "\n\n" +
-                "Return this exact JSON structure:\n" +
+        return "You are a market analysis expert. Analyze the market for a " + req.getIndustry() +
+                " startup in " + req.getLocation() +
+                " with a budget of " + req.getBudget() +
+                " at " + req.getStage() + " stage. " +
+                "Target customer: " + req.getTargetCustomer() + ". " +
+                "Location context: " + locationData + ".\n\n" +
+                "IMPORTANT: Speak in a natural, conversational, and professional tone that a normal person can easily understand. Avoid overly technical jargon.\n" +
+                "IMPORTANT: Provide REAL and VALID government schemes, subsidies, or policies available for this specific industry and location. Do not hallucinate.\n\n" +
+                "Return ONLY a valid JSON object with the following structure (no other text, no markdown):\n" +
                 "{\n" +
-                "  \"marketDemandScore\": <1-10>,\n" +
+                "  \"marketDemand\": {\n" +
+                "    \"score\": <1-10>,\n" +
+                "    \"growthIndex\": \"e.g. Growing steadily (+15% monthly)\",\n" +
+                "    \"marketSaturation\": \"e.g. Plenty of room (only 15% filled)\",\n" +
+                "    \"marketSummary\": \"A clear, conversational summary of why the demand is high or low (written like a person talking to a founder)\",\n" +
+                "    \"drivers\": [\"driver1\", \"driver2\"],\n" +
+                "    \"sources\": [\"source1\", \"source2\"]\n" +
+                "  },\n" +
                 "  \"competitors\": [{\"name\": \"\", \"location\": \"\", \"stage\": \"\", \"description\": \"\", \"threatLevel\": \"LOW|MEDIUM|HIGH\"}],\n" +
                 "  \"risks\": [{\"title\": \"\", \"description\": \"\", \"severity\": \"LOW|MEDIUM|HIGH\", \"mitigation\": \"\"}],\n" +
                 "  \"budgetFeasibility\": {\"canBuild\": [\"item1\", \"item2\"], \"actualNeed\": [\"item1\", \"item2\"], \"verdict\": \"Feasible|Tight|Infeasible\"},\n" +
-                "  \"governmentSchemes\": [{\"name\": \"\", \"body\": \"\", \"benefits\": \"\", \"eligibility\": \"\", \"applyUrl\": \"\"}],\n" +
-                "  \"actionPlan\": [{\"range\": \"0-3 months\", \"tasks\": [\"task1\", \"task2\"]}]\n" +
+                "  \"governmentSchemes\": [{\"name\": \"Name of scheme\", \"body\": \"Governing body\", \"benefits\": \"Detailed benefits\", \"eligibility\": \"Who can apply\", \"applyUrl\": \"Official link if known\"}],\n" +
+                "  \"actionPlan\": [\n" +
+                "    {\"range\": \"Month 1: Foundation\", \"tasks\": [\"task1\", \"task2\"]},\n" +
+                "    {\"range\": \"Month 2: Execution\", \"tasks\": [\"task3\", \"task4\"]},\n" +
+                "    {\"range\": \"Month 3: Launch\", \"tasks\": [\"task5\", \"task6\"]}\n" +
+                "  ]\n" +
                 "}";
     }
 
@@ -117,9 +172,23 @@ public class ExploreService {
             JsonNode data = mapper.readTree(content);
 
             ExploreResponse.MarketDemand marketDemand = new ExploreResponse.MarketDemand();
-            marketDemand.setScore(data.has("marketDemandScore") ? data.get("marketDemandScore").asInt(5) : 7);
-            marketDemand.setDrivers(List.of("Digital adoption", "Cloud growth", "Local demand"));
-            marketDemand.setSources(List.of("AI Analysis", "Market Research"));
+            if (data.has("marketDemand")) {
+                JsonNode md = data.get("marketDemand");
+                marketDemand.setScore(md.has("score") ? md.get("score").asInt(7) : 7);
+                marketDemand.setGrowthIndex(md.has("growthIndex") ? md.get("growthIndex").asText() : "+10% MoM");
+                marketDemand.setMarketSaturation(md.has("marketSaturation") ? md.get("marketSaturation").asText() : "Medium");
+                marketDemand.setMarketSummary(md.has("marketSummary") ? md.get("marketSummary").asText() : "Market shows interesting growth potential.");
+                marketDemand.setDrivers(md.has("drivers")
+                        ? mapper.convertValue(md.get("drivers"), mapper.getTypeFactory().constructCollectionType(List.class, String.class))
+                        : List.of("Market Growth"));
+                marketDemand.setSources(md.has("sources")
+                        ? mapper.convertValue(md.get("sources"), mapper.getTypeFactory().constructCollectionType(List.class, String.class))
+                        : List.of("AI Insights"));
+            } else {
+                marketDemand.setScore(data.has("marketDemandScore") ? data.get("marketDemandScore").asInt(7) : 7);
+                marketDemand.setDrivers(List.of("General growth"));
+                marketDemand.setSources(List.of("Starto AI"));
+            }
 
             List<ExploreResponse.Competitor> competitors = data.has("competitors")
                     ? mapper.convertValue(data.get("competitors"),
@@ -173,11 +242,15 @@ public class ExploreService {
     }
 
     public int getTodayUsage(UUID userId) {
-    return aiUsageRepository
-            .findByUserIdAndDate(userId, LocalDate.now())
-            .map(AiUsage::getUsedCount)
-            .orElse(0);
-}
+        return aiUsageRepository
+                .findByUserIdAndDate(userId, LocalDate.now())
+                .map(AiUsage::getUsedCount)
+                .orElse(0);
+    }
+
+    public int getTotalUsage(UUID userId) {
+        return aiUsageRepository.getTotalUsageByUserId(userId);
+    }
 
 @Transactional
 public void incrementUsage(UUID userId) {
@@ -198,4 +271,8 @@ public void incrementUsage(UUID userId) {
 
     aiUsageRepository.save(usage);
 }
+
+    public List<ExploreReport> getReports(UUID userId) {
+        return exploreReportRepository.findByUserId(userId);
+    }
 }

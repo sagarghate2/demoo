@@ -1,4 +1,6 @@
 package com.starto.controller;
+import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.starto.dto.ConnectionRequestDTO;
 import com.starto.dto.ConnectionResponseDTO;
@@ -39,7 +41,6 @@ public class ConnectionController {
     }
 
     // SEND REQUEST
-    
     @PostMapping("/request")
     public ResponseEntity<?> sendRequest(
             Authentication authentication,
@@ -48,19 +49,24 @@ public class ConnectionController {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
-        Connection connection = connectionService.sendRequest(
-                user,
-                dto.getReceiverId(),
-                dto.getSignalId(),
-                dto.getMessage()
-        );
+        try {
+            Connection connection = connectionService.sendRequest(
+                    user,
+                    dto.getReceiverId(),
+                    dto.getSignalId(),
+                    dto.getSpaceId(),
+                    dto.getMessage()
+            );
 
-        webSocketService.send(
-                "/topic/connections/" + connection.getReceiver().getId(),
-                Map.of("type", "NEW_REQUEST", "data", connection)
-        );
+            webSocketService.send(
+                    "/topic/connections/" + connection.getReceiver().getId(),
+                    Map.of("type", "NEW_REQUEST", "data", connection)
+            );
 
-        return ResponseEntity.ok(ConnectionResponseDTO.from(connection));
+            return ResponseEntity.ok(ConnectionResponseDTO.from(connection));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
     }
 
     // ACCEPT REQUEST
@@ -102,39 +108,65 @@ public class ConnectionController {
     }
 
     // PENDING
+    @Transactional(readOnly = true)
     @GetMapping("/pending")
-    public ResponseEntity<?> getPending(Authentication authentication) {
+    public ResponseEntity<List<ConnectionResponseDTO>> getPending(Authentication authentication) {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
         return ResponseEntity.ok(
                 connectionService.getPendingRequests(user.getId())
+                        .stream()
+                        .map(ConnectionResponseDTO::from)
+                        .toList()
         );
     }
 
     // SENT
+    @Transactional(readOnly = true)
     @GetMapping("/sent")
-    public ResponseEntity<?> getSent(Authentication authentication) {
+    public ResponseEntity<List<ConnectionResponseDTO>> getSent(Authentication authentication) {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
         return ResponseEntity.ok(
                 connectionService.getSentRequests(user.getId())
+                        .stream()
+                        .map(ConnectionResponseDTO::from)
+                        .toList()
         );
     }
 
-    // ACCEPTED
+    // ACCEPTED (Current User)
+    @Transactional(readOnly = true)
     @GetMapping("/accepted")
-    public ResponseEntity<?> getAccepted(Authentication authentication) {
+    public ResponseEntity<List<ConnectionResponseDTO>> getAccepted(Authentication authentication) {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
         return ResponseEntity.ok(
                 connectionService.getAcceptedConnections(user.getId())
+                        .stream()
+                        .map(ConnectionResponseDTO::from)
+                        .toList()
+        );
+    }
+
+    // ACCEPTED FOR SPECIFIC USER
+    @Transactional(readOnly = true)
+    @GetMapping("/user/{userId}/accepted")
+    public ResponseEntity<List<ConnectionResponseDTO>> getAcceptedForUser(@PathVariable UUID userId) {
+        return ResponseEntity.ok(
+                connectionService.getAcceptedConnections(userId)
+                        .stream()
+                        .map(ConnectionResponseDTO::from)
+                        .toList()
         );
     }
 
     //  WHATSAPP LINK (MONETIZATION POINT)
+    //  WhatsApp link with PLAN CONTROL
+    @Transactional(readOnly = true)
     @GetMapping("/{connectionId}/whatsapp")
     public ResponseEntity<?> getWhatsappLink(
             Authentication authentication,

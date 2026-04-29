@@ -34,7 +34,7 @@ public class SecurityConfig {
      * using Google's public keys fetched at startup — no secret to commit.
      * Ensure FIREBASE_SERVICE_ACCOUNT_B64 (not a key literal) is used (see FirebaseConfig).
      */
-    @Value("${security.cors.allowed-origins:http://localhost:3000,http://localhost:8080,http://localhost:8081}")
+    @Value("${security.cors.allowed-origins:http://localhost:3000,http://localhost:9090,http://localhost:9091}")
     private String allowedOriginsRaw;
 
     @Bean
@@ -55,6 +55,8 @@ public class SecurityConfig {
         mapper.registerModule(new JavaTimeModule());
         mapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // Force ISO-8601 string format instead of numeric timestamps
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;
     }
 
@@ -66,6 +68,8 @@ public class SecurityConfig {
 
         http
             .csrf(csrf -> csrf.disable())
+            .httpBasic(basic -> basic.disable())
+            .formLogin(form -> form.disable())
             .cors(cors -> cors.configurationSource(request -> {
                 var config = new CorsConfiguration();
                 config.setAllowedOrigins(allowedOrigins);
@@ -103,12 +107,20 @@ public class SecurityConfig {
                     "/api/auth/forgot-password",
                     "/api/signals",
                     "/api/signals/**",
+                    "/api/users/*",
+                    "/api/users/*/online-status",
+                    "/api/connections/user/*/accepted",
                     "/api/users/check-username",
                     "/api/subscriptions/webhook/razorpay",
                     "/api/subscriptions/create",
                     "/api/subscriptions/plans",
+                    "/api/subscriptions/verify",
+                    "/api/comments/signal/**",
+                    "/avatars/**",
+                    "/avatar/**",
                     "/actuator/health"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*", "/api/users/*/online-status").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(firebaseAuthFilter(), UsernamePasswordAuthenticationFilter.class);

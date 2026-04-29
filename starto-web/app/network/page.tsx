@@ -12,12 +12,52 @@ import { useRatingStore } from '@/store/useRatingStore'
 import { Check, X, Users, UserCheck, MessageSquare, Zap, Link as LinkIcon, UserPlus, CheckCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import VerifiedAvatar from '@/components/feed/VerifiedAvatar'
+import StatusModal from '@/components/feed/StatusModal'
+import { connectionsApi } from '@/lib/apiClient'
 
 export default function NetworkPage() {
     const router = useRouter()
-    const { user, token } = useAuthStore()
-    const { connections, pendingRequests, sentRequests, offers, acceptRequest, rejectRequest, fetchRequests, fetchOffers, deleteOffer, sendRequest } = useNetworkStore()
-    const { getAverageRating } = useRatingStore()
+    const { user, token, isAuthenticated } = useAuthStore()
+    const { connections, pendingRequests, sentRequests, offers, sendRequest, acceptRequest, rejectRequest, fetchRequests, fetchOffers, acceptOffer, rejectOffer, deleteOffer } = useNetworkStore()
+    const [statusModal, setStatusModal] = useState<{
+        isOpen: boolean, 
+        type: 'upgrade' | 'duplicate' | 'error' | 'confirm', 
+        title: string, 
+        message: string,
+        onConfirm?: () => void
+    }>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: '',
+        onConfirm: undefined
+    })
+    const closeStatusModal = () => setStatusModal(prev => ({ ...prev, isOpen: false }))
+    
+    const handleWhatsappClick = async (connectionId: string) => {
+        try {
+            const { data, error } = await connectionsApi.getWhatsappLink(connectionId);
+            if (data?.whatsappUrl) {
+                window.open(data.whatsappUrl, '_blank');
+            } else if (error) {
+                setStatusModal({
+                    isOpen: true,
+                    type: 'upgrade',
+                    title: 'Upgrade Required',
+                    message: error || 'Upgrade your plan to unlock WhatsApp contact'
+                });
+            }
+        } catch (err: any) {
+            setStatusModal({
+                isOpen: true,
+                type: 'upgrade',
+                title: 'Upgrade Required',
+                message: err.message || 'Upgrade your plan to unlock WhatsApp contact'
+            });
+        }
+    };
+
+    // const { getAverageRating } = useRatingStore() // Removed to fix crash after API migration
     const [tab, setTab] = useState<'connections' | 'requests' | 'offers'>('connections')
     const [search, setSearch] = useState('')
 
@@ -31,11 +71,17 @@ export default function NetworkPage() {
     const connectionsArray = Array.isArray(connections) ? connections : []
     const pendingArray = Array.isArray(pendingRequests) ? pendingRequests : []
     const sentArray = Array.isArray(sentRequests) ? sentRequests : []
-    const offersArray = Array.isArray(offers) ? offers : []
+    const offersArray = (Array.isArray(offers) ? offers : []).filter(o => o.status !== 'REJECTED')
 
     const filteredConnections = connectionsArray.filter(c => {
-        const otherUsername = c.requesterId === user?.id ? c.receiverName : c.requesterName;
-        return otherUsername?.toLowerCase().includes(search.toLowerCase());
+        const isRequester = c.requesterUsername === user?.username;
+        const otherUsername = isRequester ? c.receiverUsername : c.requesterUsername;
+        const otherName = isRequester ? c.receiverName : c.requesterName;
+        
+        if (!otherUsername && !otherName) return true; // Show if data is incomplete instead of hiding
+        
+        return (otherUsername?.toLowerCase().includes(search.toLowerCase()) || 
+                otherName?.toLowerCase().includes(search.toLowerCase()));
     })
 
     return (
@@ -58,23 +104,13 @@ export default function NetworkPage() {
                                 onClick={() => setTab('requests')}
                                 className={`pb-3 font-bold text-xs uppercase tracking-widest border-b-2 transition-all flex items-center gap-1.5 ${tab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'}`}
                             >
-                                Requests
-                                {pendingArray.length > 0 && (
-                                    <span className="bg-primary text-white text-[9px] font-bold rounded-full px-1.5 py-0.5">
-                                        {pendingArray.length}
-                                    </span>
-                                )}
+                                Requests ({pendingArray.length})
                             </button>
                             <button
                                 onClick={() => setTab('offers')}
                                 className={`pb-3 font-bold text-xs uppercase tracking-widest border-b-2 transition-all flex items-center gap-1.5 ${tab === 'offers' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'}`}
                             >
-                                Offers
-                                {offersArray.length > 0 && (
-                                    <span className="bg-yellow-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5">
-                                        {offersArray.length}
-                                    </span>
-                                )}
+                                Offers ({offersArray.length})
                             </button>
                         </div>
                     </div>
@@ -101,41 +137,56 @@ export default function NetworkPage() {
                                     <div className="space-y-3">
                                         <AnimatePresence>
                                             {filteredConnections.map(c => {
-                                                const rating = getAverageRating(c.username)
+                                                const isRequester = c.requesterUsername === user?.username;
+                                                const otherUser = isRequester ? 
+                                                    { username: c.receiverUsername, name: c.receiverName, role: c.receiverRole, avatar: c.receiverAvatarUrl } : 
+                                                    { username: c.requesterUsername, name: c.requesterName, role: c.requesterRole, avatar: c.requesterAvatarUrl };
+                                                // const rating = getAverageRating(otherUser.username)
+                                                 const rating = 0 // Rating display disabled in list for performance
+                                                
                                                 return (
                                                     <motion.div
-                                                        key={c.username}
+                                                        key={c.id}
                                                         initial={{ opacity: 0, y: 8 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, x: -20 }}
-                                                        className="flex items-center gap-4 p-4 bg-white border border-border rounded-2xl hover:border-primary transition-all"
+                                                        className="flex items-center gap-4 p-4 bg-white border border-border rounded-2xl hover:border-primary transition-all shadow-sm"
                                                     >
-                                                        <Link href={`/profile/${c.username}`}>
+                                                        <Link href={`/profile/${otherUser.username}`}>
                                                             <VerifiedAvatar
-                                                                username={c.username}
-                                                                plan={c.plan}
+                                                                username={otherUser.username}
+                                                                avatarUrl={otherUser.avatar}
                                                                 size="w-12 h-12"
                                                                 badgeSize="w-4 h-4"
                                                             />
                                                         </Link>
                                                         <div className="flex-1 min-w-0">
-                                                            <Link href={`/profile/${c.username}`} className="font-medium text-sm hover:text-primary transition-colors">
-                                                                @{c.username}
+                                                            <Link href={`/profile/${otherUser.username}`} className="font-medium text-sm hover:text-primary transition-colors">
+                                                                {otherUser.name} <span className="text-text-muted text-xs font-normal">(@{otherUser.username})</span>
                                                             </Link>
-                                                            <p className="text-[10px] text-text-muted uppercase font-bold">{c.category}</p>
+                                                            <p className="text-[10px] text-text-muted uppercase font-bold">{otherUser.role}</p>
                                                             {rating > 0 && (
                                                                 <p className="text-[10px] text-yellow-500 font-bold">★ {rating.toFixed(1)}</p>
                                                             )}
                                                         </div>
                                                         <div className="flex gap-2">
                                                             <button
-                                                                title="Message (coming soon)"
-                                                                className="p-2 rounded-lg border border-border hover:bg-surface-2 transition-all text-text-muted"
+                                                                onClick={() => handleWhatsappClick(c.id)}
+                                                                title="Connect on WhatsApp"
+                                                                className="p-2 rounded-lg border border-border hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-all text-text-muted"
                                                             >
-                                                                <MessageSquare className="w-4 h-4" />
+                                                                <Zap className="w-4 h-4 fill-current" />
                                                             </button>
-                                                            <button
-                                                                onClick={() => removeConnection(c.username)}
+                                                             <button
+                                                                onClick={() => {
+                                                                    setStatusModal({
+                                                                        isOpen: true,
+                                                                        type: 'confirm',
+                                                                        title: 'Remove Connection?',
+                                                                        message: `Are you sure you want to remove your connection with ${otherUser.name}? You will need to send a new request to reconnect.`,
+                                                                        onConfirm: () => rejectRequest(c.id)
+                                                                    })
+                                                                }}
                                                                 title="Remove connection"
                                                                 className="p-2 rounded-lg border border-border hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all text-text-muted"
                                                             >
@@ -191,7 +242,7 @@ export default function NetworkPage() {
                                                     <button
                                                         onClick={() => acceptRequest(r.id)}
                                                         title="Accept connection"
-                                                        className="p-2.5 rounded-xl border border-green-300 bg-green-50 text-green-600 hover:bg-green-100 transition-all active:scale-95"
+                                                        className="p-2.5 rounded-xl bg-primary text-white hover:opacity-90 transition-all active:scale-95 shadow-sm"
                                                     >
                                                         <Check className="w-4 h-4" />
                                                     </button>
@@ -199,7 +250,7 @@ export default function NetworkPage() {
                                                     <button
                                                         onClick={() => rejectRequest(r.id)}
                                                         title="Reject request"
-                                                        className="p-2.5 rounded-xl border border-red-200 bg-red-50 text-red-400 hover:bg-red-100 transition-all active:scale-95"
+                                                        className="p-2.5 rounded-xl border border-border bg-surface-2 text-text-muted hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all active:scale-95"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -238,47 +289,106 @@ export default function NetworkPage() {
                                                         <Link href={`/profile/${o.requesterUsername}`}>
                                                             <VerifiedAvatar
                                                                 username={o.requesterUsername}
+                                                                avatarUrl={o.requesterAvatarUrl}
                                                                 size="w-10 h-10"
                                                                 badgeSize="w-3.5 h-3.5"
                                                             />
                                                         </Link>
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <Link href={`/profile/${o.requesterUsername}`} className="font-medium text-sm hover:text-primary transition-colors hover:underline">
-                                                                    {o.requesterName} <span className="text-text-muted text-xs font-normal">(@{o.requesterUsername})</span>
+                                                                <Link href={`/profile/${o.requesterUsername || '#'}`} className="font-medium text-sm hover:text-primary transition-colors hover:underline">
+                                                                    {o.requesterName} <span className="text-text-muted text-xs font-normal">(@{o.requesterUsername || 'unknown'})</span>
                                                                 </Link>
-                                                                {/* Connect icon */}
-                                                                {connectionsArray.some(c => c.requesterUsername === o.requesterUsername || c.receiverUsername === o.requesterUsername) ? (
+                                                            </div>
+                                                            {o.signalTitle && (
+                                                                <Link href={`/signals/${o.signalId}`} className="text-[10px] text-primary hover:underline font-bold uppercase tracking-tight block mt-0.5">
+                                                                    Re: {o.signalTitle}
+                                                                </Link>
+                                                            )}
+                                                            <p className="text-[10px] text-text-muted mt-0.5">{new Date(o.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                {/* Connect icon or Status */}
+                                                                {o.status === 'ACCEPTED' ? (
+                                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                                                        <CheckCheck className="w-3 h-3" /> Connected
+                                                                    </span>
+                                                                ) : connectionsArray.some(c => c.requesterUsername === o.requesterUsername || c.receiverUsername === o.requesterUsername) ? (
                                                                     <span title="Already connected" className="text-green-500"><CheckCheck className="w-4 h-4" /></span>
                                                                 ) : sentArray.some(r => r.receiverUsername === o.requesterUsername && r.status === 'pending') ? (
                                                                     <span title="Request sent" className="text-yellow-500"><CheckCheck className="w-4 h-4" /></span>
                                                                 ) : (
-                                                                    <button
-                                                                        title="Send connection request"
-                                                                        onClick={() => {
-                                                                            sendRequest(o.signalId, 'Connecting via offer!');
-                                                                        }}
-                                                                        className="text-text-muted hover:text-primary transition-colors p-0.5 rounded"
-                                                                    >
-                                                                        <UserPlus className="w-4 h-4" />
-                                                                    </button>
+                                                                    <div className="flex gap-2">
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    await sendRequest(null, 'Connecting via offer!', o.requesterId);
+                                                                                } catch (err: any) {
+                                                                                    if (err.message === 'Request already exists' || err.message?.includes('already connected')) {
+                                                                                        setStatusModal({
+                                                                                            isOpen: true,
+                                                                                            type: 'duplicate',
+                                                                                            title: 'Already Connected',
+                                                                                            message: 'You are already connected or have a pending request with this person.'
+                                                                                        });
+                                                                                    } else {
+                                                                                        setStatusModal({
+                                                                                            isOpen: true,
+                                                                                            type: 'error',
+                                                                                            title: 'Request Failed',
+                                                                                            message: err.message || 'Failed to send request'
+                                                                                        });
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-primary text-white rounded-lg hover:opacity-90 transition-all"
+                                                                        >
+                                                                            Accept
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => rejectOffer(o.id)}
+                                                                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-surface-2 text-text-muted border border-border rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
+                                                                        >
+                                                                            Reject
+                                                                        </button>
+                                                                    </div>
                                                                 )}
                                                             </div>
-                                                            <p className="text-[10px] text-text-muted mt-0.5">
-                                                                {new Date(o.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                                            </p>
+
                                                         </div>
                                                     </div>
-                                                    <button onClick={() => deleteOffer(o.id)} className="text-text-muted hover:text-red-500 p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 bg-surface-1">
-                                                        <X className="w-4 h-4" />
-                                                    </button>
+                                                    
+                                                    {/* Action Icons */}
+                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                         {o.status === 'ACCEPTED' && (
+                                                             <button 
+                                                                 onClick={() => handleWhatsappClick(o.id)}
+                                                                 className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all border border-green-100"
+                                                                 title="Chat on WhatsApp"
+                                                               >
+                                                                 <Zap className="w-4 h-4" />
+                                                             </button>
+                                                         )}
+                                                        <button onClick={() => deleteOffer(o.id)} className="text-text-muted hover:text-red-500 p-1.5 rounded-lg transition-colors bg-surface-1 border border-border/50">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <div className="pt-3 border-t border-border mt-1">
                                                     <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Portfolio/Project Link</p>
-                                                    <a href={o.portfolioLink} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1.5 font-medium bg-surface-1 hover:bg-surface-2 transition-colors py-2 px-3 rounded-lg border border-border/50 inline-flex max-w-full">
-                                                        <LinkIcon className="w-3.5 h-3.5" />
-                                                        <span className="truncate">{o.portfolioLink}</span>
-                                                    </a>
+                                                    {o.portfolioLink ? (
+                                                        <a 
+                                                            href={o.portfolioLink.startsWith('http') ? o.portfolioLink : `https://${o.portfolioLink}`} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-sm text-primary hover:underline flex items-center gap-1.5 font-medium bg-surface-1 hover:bg-surface-2 transition-colors py-2 px-3 rounded-lg border border-border/50 inline-flex max-w-full"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <LinkIcon className="w-3.5 h-3.5" />
+                                                            <span className="truncate">{o.portfolioLink}</span>
+                                                        </a>
+                                                    ) : (
+                                                        <p className="text-xs text-text-muted italic">No link provided</p>
+                                                    )}
                                                     <p className="text-xs text-text-secondary mt-3 leading-relaxed italic">"{o.message}"</p>
                                                 </div>
                                             </motion.div>
@@ -301,30 +411,45 @@ export default function NetworkPage() {
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-text-secondary">Pending Requests</span>
-                                <span className="font-mono font-bold text-yellow-600">{(pendingRequests || []).length}</span>
+                                <span className="font-mono font-bold">{(pendingRequests || []).length}</span>
                             </div>
                             <div className="flex justify-between items-center pt-4 border-t border-border">
                                 <span className="text-sm text-text-secondary">Help Offers Received</span>
-                                <span className="font-mono font-bold font-primary text-black bg-yellow-100 px-2 rounded-md">{(offers || []).length}</span>
+                                <span className="font-mono font-bold">{offersArray.length}</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Sponsored Card */}
-                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-3">Sponsored</p>
-                        <h3 className="font-display text-lg mb-2 leading-snug">Want to run ads here?</h3>
-                        <p className="text-sm text-text-secondary leading-relaxed mb-5">Reach 1000s of founders, investors &amp; mentors in our ecosystem.</p>
+                    <div className="bg-white border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-3 right-3">
+                            <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-3 opacity-50">Ad Network</p>
+                        <h3 className="font-display text-lg mb-2 leading-snug">Targeted ecosystem ads</h3>
+                        <p className="text-sm text-text-secondary leading-relaxed mb-5">Reach 1000s of founders, investors &amp; mentors directly in their feed.</p>
                         <button
-                            onClick={() => router.push('/subscription')}
-                            className="w-full bg-black text-white py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-primary transition-colors"
+                            disabled
+                            className="w-full bg-surface-2 text-text-muted py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-not-allowed border border-border transition-all"
                         >
-                            Get started →
+                            Coming Soon
                         </button>
                     </div>
                 </aside>
                 <MobileBottomNav />
             </div>
+            <StatusModal 
+                isOpen={statusModal.isOpen} 
+                onClose={closeStatusModal}
+                onConfirm={statusModal.onConfirm}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+                confirmText="Yes, Remove"
+                cancelText="Keep Connection"
+            />
         </div>
     )
 }

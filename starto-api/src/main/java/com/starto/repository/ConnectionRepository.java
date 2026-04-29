@@ -11,13 +11,16 @@ import java.util.UUID;
 
 public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
+    @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.id = :id")
+    java.util.Optional<Connection> findByIdWithUsers(@Param("id") UUID id);
+
     @Query("SELECT c FROM Connection c WHERE c.requester.id = :requesterId OR c.receiver.id = :receiverId")
     List<Connection> findByRequesterIdOrReceiverId(@Param("requesterId") UUID requesterId, @Param("receiverId") UUID receiverId);
 
-    @Query("SELECT c FROM Connection c WHERE c.receiver.id = :receiverId AND c.status = :status")
+    @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.receiver.id = :receiverId AND c.status = :status")
     List<Connection> findByReceiverIdAndStatus(@Param("receiverId") UUID receiverId, @Param("status") String status);
 
-    @Query("SELECT c FROM Connection c WHERE c.requester.id = :requesterId AND c.status = :status")
+    @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.requester.id = :requesterId AND c.status = :status")
     List<Connection> findByRequesterIdAndStatus(@Param("requesterId") UUID requesterId, @Param("status") String status);
 
     @Query("SELECT c FROM Connection c WHERE c.requester.id = :requesterId AND c.signal.id = :signalId")
@@ -25,7 +28,9 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     @Query("""
         SELECT c FROM Connection c
-        WHERE c.status = 'accepted'
+        JOIN FETCH c.requester
+        JOIN FETCH c.receiver
+        WHERE c.status = 'ACCEPTED'
         AND (
             (c.requester.id = :userA AND c.receiver.id = :userB)
             OR
@@ -37,10 +42,10 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
         @Param("userB") UUID userB
     );
 
-    @Query("SELECT c FROM Connection c WHERE c.requester.id = :requesterId")
+    @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.requester.id = :requesterId")
     List<Connection> findByRequesterId(@Param("requesterId") UUID requesterId);
 
-    @Query("SELECT c FROM Connection c WHERE c.requester.id = :requesterId AND c.receiver.id = :receiverId")
+    @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.requester.id = :requesterId AND c.receiver.id = :receiverId")
 Optional<Connection> findByRequesterIdAndReceiverId(
     @Param("requesterId") UUID requesterId,
     @Param("receiverId") UUID receiverId
@@ -49,7 +54,9 @@ Optional<Connection> findByRequesterIdAndReceiverId(
 
 @Query("""
     SELECT c FROM Connection c
-    WHERE c.status = 'accepted'
+    JOIN FETCH c.requester
+    JOIN FETCH c.receiver
+    WHERE c.status = 'ACCEPTED'
     AND (c.requester.id = :userId OR c.receiver.id = :userId)
 """)
 List<Connection> findAcceptedByUserId(@Param("userId") UUID userId);

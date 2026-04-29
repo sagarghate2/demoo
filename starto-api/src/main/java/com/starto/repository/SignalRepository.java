@@ -57,6 +57,7 @@ public interface SignalRepository extends JpaRepository<Signal, UUID> {
 
 
     long countByUserId(UUID userId);
+    long countByUserIdAndCreatedAtAfter(UUID userId, java.time.OffsetDateTime timestamp);
 
     // seeking + city — both partial, case-insensitive
     @Query("""
@@ -123,5 +124,10 @@ void expireOldSignals(@Param("now") OffsetDateTime now);
            OR LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
         """)
     List<Signal> findByTitleDescriptionOrOwner(@Param("query") String query);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE signals s SET response_count = (SELECT COUNT(*) FROM comments c WHERE c.signal_id = s.id)", nativeQuery = true)
+    void syncAllResponseCounts();
 }
 

@@ -36,6 +36,8 @@ public class RegisterRequestDTO {
     private String country;
     private String gender;
     private String bio;
+    private String avatarUrl;
     private BigDecimal lat;
     private BigDecimal lng;
+    private String address;
 }

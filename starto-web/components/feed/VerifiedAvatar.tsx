@@ -1,20 +1,6 @@
-/**
- * VerifiedAvatar
- * A profile-picture circle with an Instagram-style solid black verified badge
- * overlaid on the bottom-right corner — shown only for Pro / Founder accounts.
- *
- * Props:
- *   username  – used to generate the DiceBear avatar seed
- *   avatarUrl – custom avatar URL (optional; falls back to DiceBear)
- *   plan      – 'Free' | 'Pro' | 'Founder' (case-insensitive)
- *   size      – tailwind size class e.g. 'w-10 h-10' (default)
- *   badgeSize – tailwind size class for the badge icon e.g. 'w-4 h-4' (default)
- *   className – extra classes on the outer wrapper
- */
-
 "use client"
 
-import Image from 'next/image'
+import { useState } from 'react'
 import { BadgeCheck } from 'lucide-react'
 
 interface VerifiedAvatarProps {
@@ -40,25 +26,60 @@ export default function VerifiedAvatar({
     size = 'w-10 h-10',
     badgeSize = 'w-4 h-4',
     className = '',
-    fallback,
 }: VerifiedAvatarProps) {
+    const [imageError, setImageError] = useState(false)
     const verified = isVerifiedPlan(plan)
-    const src = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username || 'user')}`
+    
+    // Logic for Letter DP (Gmail style)
+    const getInitials = (name: string) => {
+        if (!name) return '??';
+        // Remove role suffix if present
+        const cleanName = name.split('_')[0].trim();
+        const parts = cleanName.split(/\s+/).filter(Boolean);
+        
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        if (parts.length === 1) {
+            return parts[0].substring(0, 2).toUpperCase();
+        }
+        return '??';
+    };
+
+    const getBgColor = (name: string) => {
+        const colors = [
+            'bg-[#F44336]', 'bg-[#E91E63]', 'bg-[#9C27B0]', 'bg-[#673AB7]', 
+            'bg-[#3F51B5]', 'bg-[#2196F3]', 'bg-[#03A9F4]', 'bg-[#00BCD4]', 
+            'bg-[#009688]', 'bg-[#4CAF50]', 'bg-[#8BC34A]', 'bg-[#CDDC39]', 
+            'bg-[#FFC107]', 'bg-[#FF9800]', 'bg-[#FF5722]', 'bg-[#795548]'
+        ];
+        let hash = 0;
+        const str = name || 'U';
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+    };
+
+    const initials = getInitials(username || 'U');
+    const bgColor = getBgColor(username || 'U');
+
+    // Only show image if we have a URL and it hasn't failed to load
+    const shouldShowImage = avatarUrl && !imageError;
 
     return (
         <span className={`relative inline-flex shrink-0 ${size} ${className}`}>
             {/* Avatar circle */}
-            <span className={`${size} rounded-full bg-surface-2 border border-border overflow-hidden relative flex items-center justify-center`}>
-                {fallback && !avatarUrl ? (
-                    fallback
-                ) : (
-                    <Image
-                        src={src}
+            <span className={`${size} rounded-full border border-border overflow-hidden relative flex items-center justify-center select-none ${shouldShowImage ? 'bg-surface-2' : `${bgColor} text-white`}`}>
+                {shouldShowImage ? (
+                    <img
+                        src={avatarUrl}
                         alt={username}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="w-full h-full object-cover"
+                        onError={() => setImageError(true)}
                     />
+                ) : (
+                    <span className="text-[45%] tracking-tighter uppercase font-bold">{initials}</span>
                 )}
             </span>
 

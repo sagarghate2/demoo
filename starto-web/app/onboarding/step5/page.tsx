@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Camera, Check, User, Loader2, Rocket } from 'lucide-react'
+import { Check, Loader2, Rocket } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useOnboardingStore } from '@/store/useOnboardingStore'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -30,8 +30,10 @@ export default function OnboardingStep5() {
                 role: onboarding.role,
                 industry: onboarding.industry,
                 city: onboarding.city,
+                address: onboarding.address,
                 lat: onboarding.lat || undefined,
-                lng: onboarding.lng || undefined
+                lng: onboarding.lng || undefined,
+                avatarUrl: onboarding.avatarUrl
             })
 
             if (data) {
@@ -66,14 +68,32 @@ export default function OnboardingStep5() {
                     </div>
 
                     <div className="flex flex-col items-center mb-10">
-                        <div className="relative group cursor-pointer">
-                            <div className="w-28 h-28 bg-white/5 rounded-full flex items-center justify-center border-2 border-dashed border-white/10 group-hover:border-primary/50 transition-all">
-                                <User className="w-12 h-12 text-gray-600 group-hover:text-primary transition-colors" />
-                            </div>
-                            <div className="absolute bottom-1 right-1 bg-primary p-2.5 rounded-full text-black border-4 border-[#161618] shadow-lg hover:scale-110 transition-transform">
-                                <Camera className="w-4 h-4" />
-                            </div>
+                        <label className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-6 block">Select your avatar</label>
+                        <div className="grid grid-cols-4 gap-4 w-full">
+                            {[1, 2, 3, 4].map(num => {
+                                const url = `/avatars/avatar${num}.svg`;
+                                const isSelected = onboarding.avatarUrl === url;
+                                return (
+                                    <button 
+                                        key={num}
+                                        onClick={() => onboarding.setAvatar(url)}
+                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${
+                                            isSelected ? 'border-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)]' : 'border-white/5 grayscale hover:grayscale-0'
+                                        }`}
+                                    >
+                                        <img src={(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080') + url} className="w-full h-full object-cover" alt={`Avatar ${num}`} />
+                                        {isSelected && (
+                                            <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                                <Check className="w-6 h-6 text-black" />
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        <p className="text-[10px] text-gray-600 mt-4 font-medium uppercase tracking-tighter">
+                            {onboarding.avatarUrl ? 'Selected Platform Avatar' : 'No selection — using Letter DP instead'}
+                        </p>
                     </div>
 
                     <div className="space-y-6 mb-10">

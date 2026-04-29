@@ -1,6 +1,9 @@
 package com.starto.controller;
+import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.starto.dto.OfferRequestDTO;
+import com.starto.dto.OfferResponseDTO;
 import com.starto.model.Offer;
 import com.starto.model.User;
 import com.starto.enums.Plan;
@@ -49,7 +52,11 @@ public ResponseEntity<?> sendOffer(
     Plan plan = user.getPlan();
 
     //  Get current usage
-    int usedOffers = offerService.countUserOffers(user.getId());
+    java.time.OffsetDateTime planStart = user.getPlanExpiresAt() != null 
+        ? user.getPlanExpiresAt().minusDays(com.starto.config.PlanConfig.PLAN_DURATION_DAYS.getOrDefault(plan, 30))
+        : user.getCreatedAt();
+
+    long usedOffers = offerService.countUserOffers(user.getId(), planStart);
 
     //  Enforce limit
     if (!planService.canSendOffer(plan, usedOffers)) {
@@ -63,24 +70,71 @@ public ResponseEntity<?> sendOffer(
 }
 
     // founder sees inbox
+    @Transactional(readOnly = true)
     @GetMapping("/inbox")
-    public ResponseEntity<?> getInbox(Authentication authentication) {
+    public ResponseEntity<List<OfferResponseDTO>> getInbox(Authentication authentication) {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
-        return ResponseEntity.ok(offerService.getAllOffers(user.getId()));
+        return ResponseEntity.ok(
+                offerService.getAllOffers(user.getId())
+                        .stream()
+                        .map(OfferResponseDTO::from)
+                        .toList()
+        );
     }
 
     // talent sees sent
+    @Transactional(readOnly = true)
     @GetMapping("/sent")
-    public ResponseEntity<?> getSent(Authentication authentication) {
+    public ResponseEntity<List<OfferResponseDTO>> getSent(Authentication authentication) {
         User user = getUser(authentication);
         if (user == null) return ResponseEntity.status(401).build();
 
-        return ResponseEntity.ok(offerService.getSentOffers(user.getId()));
+        return ResponseEntity.ok(
+                offerService.getSentOffers(user.getId())
+                        .stream()
+                        .map(OfferResponseDTO::from)
+                        .toList()
+        );
+    }
+
+    // accept
+    @PostMapping("/{offerId}/accept")
+    public ResponseEntity<OfferResponseDTO> acceptOffer(
+            Authentication authentication,
+            @PathVariable UUID offerId) {
+        User user = getUser(authentication);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        return ResponseEntity.ok(OfferResponseDTO.from(offerService.acceptOffer(user, offerId)));
+    }
+
+    // reject
+    @PostMapping("/{offerId}/reject")
+    public ResponseEntity<OfferResponseDTO> rejectOffer(
+            Authentication authentication,
+            @PathVariable UUID offerId) {
+        User user = getUser(authentication);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        return ResponseEntity.ok(OfferResponseDTO.from(offerService.rejectOffer(user, offerId)));
+    }
+
+    // delete
+    @DeleteMapping("/{offerId}")
+    public ResponseEntity<Void> deleteOffer(
+            Authentication authentication,
+            @PathVariable UUID offerId) {
+        User user = getUser(authentication);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        offerService.deleteOffer(user, offerId);
+        return ResponseEntity.noContent().build();
     }
 
     //  WhatsApp link with PLAN CONTROL
+    @Transactional(readOnly = true)
     @GetMapping("/{offerId}/whatsapp")
     public ResponseEntity<?> getWhatsappLink(
             Authentication authentication,

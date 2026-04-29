@@ -28,30 +28,57 @@ export async function apiFetch<T>(
 ): Promise<{ data: T | null; error: string | null; status: number }> {
     try {
         const headers = new Headers(options.headers || {});
-        if (!headers.has('Content-Type')) {
+        const method = options.method || 'GET';
+        
+        if (!headers.has('Content-Type') && method !== 'GET') {
             headers.set('Content-Type', 'application/json');
         }
 
         // Auto-inject Firebase ID Token if user is logged in
         let token = overrideToken;
-        if (!token && typeof window !== 'undefined') {
+        const skipAuth = headers.get('X-Skip-Auth') === 'true';
+        headers.delete('X-Skip-Auth');
+
+        if (!token && !skipAuth && typeof window !== 'undefined') {
             const auth = getAuth();
             if (auth.currentUser) {
                 token = await auth.currentUser.getIdToken();
+            } else {
+                // Fallback: Try reading from zustand storage in localStorage
+                try {
+                    const storage = localStorage.getItem('starto-auth-storage');
+                    console.log('[apiFetch] raw storage:', storage);
+                    if (storage) {
+                        const parsed = JSON.parse(storage);
+                        token = parsed.state?.token;
+                        console.log('[apiFetch] Found token in localStorage:', token ? 'Yes (starts with ' + token.substring(0, 10) + '...)' : 'No');
+                        if (token) console.log('[apiFetch] Using token fallback from localStorage');
+                    }
+                } catch (e) {
+                    console.error('Failed to read token from localStorage', e);
+                }
             }
         }
 
-        if (token) {
+        if (token && !skipAuth) {
             headers.set('Authorization', `Bearer ${token}`);
         }
 
         const url = `${BASE_URL}${endpoint}`;
         console.log(`[apiFetch] Calling: ${url}`, options);
 
-        const response = await fetch(url, {
+        const fetchOptions: RequestInit = {
             ...options,
+            method,
             headers,
-        });
+        };
+
+        // Strict enforcement: GET requests must NOT have a body
+        if (method === 'GET') {
+            delete (fetchOptions as any).body;
+        }
+
+        const response = await fetch(url, fetchOptions);
 
         const status = response.status;
         
@@ -71,7 +98,7 @@ export async function apiFetch<T>(
         if (!response.ok) {
             return {
                 data: null,
-                error: typeof data === 'object' ? (data.error || data.message || response.statusText) : (data || response.statusText),
+                error: (data && typeof data === 'object') ? (data.error || data.message || response.statusText) : (data || response.statusText),
                 status
             };
         }
@@ -85,31 +112,44 @@ export async function apiFetch<T>(
 
 // ─── Data Interfaces ─────────────────────────────────────────────────────────
 
-export interface ApiSignal {
+export interface ApiUnifiedPost {
     id: string;
-    type: 'need' | 'help';
+    type: string; // "SIGNAL" or "SPACE" or "need" | "help"
     title: string;
     description: string;
     category: string;
-    seeking: string;
-    stage: string;
-    city: string;
-    state: string;
-    lat: number | null;
-    lng: number | null;
-    timelineDays: number;
-    compensation: string;
-    visibility: string;
-    signalStrength: string;
-    viewCount: number;
-    responseCount: number;
-    offerCount: number;
-    isBoosted: boolean;
-    createdAt: string;    // ISO datetime
-    expiresAt: string;
+    username: string;
     userId: string;
-    username?: string;
-    userPlan?: string;
+    userPlan: string;
+    userRole?: string;
+    createdAt: string;
+    avatarUrl?: string | null;
+    
+    // Signal stats
+    viewCount?: number;
+    responseCount?: number;
+    offerCount?: number;
+    
+    // Space specifics
+    spaceType?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    contact?: string;
+    website?: string;
+    lat?: number | null;
+    lng?: number | null;
+}
+
+export interface ApiSignal extends ApiUnifiedPost {
+    seeking?: string;
+    stage?: string;
+    compensation?: string;
+    visibility?: string;
+    signalStrength?: string;
+    timelineDays?: number;
+    isBoosted?: boolean;
+    expiresAt?: string;
 }
 
 export interface ApiUser {
@@ -137,12 +177,15 @@ export interface ApiUser {
     fcmToken?: string | null;
     plan: string;
     planExpiresAt?: string | null;
+    signalCount?: number;
+    networkSize?: number;
 }
 
 export interface ApiComment {
     id: string;
     content: string;
     username: string;
+    avatarUrl?: string;
     createdAt: string;
     replies?: ApiComment[];
 }
@@ -160,6 +203,9 @@ export interface ApiExploreResponse {
         score: number;
         drivers: string[];
         sources: string[];
+        growthIndex?: string;
+        marketSaturation?: string;
+        marketSummary?: string;
     };
     competitors: {
         name: string;
@@ -177,7 +223,12 @@ export interface ApiExploreResponse {
     budgetFeasibility: {
         canBuild: string[];
         actualNeed: string[];
+        verdict: string;
     };
+    actionPlan: {
+        range: string;
+        tasks: string[];
+    }[];
 }
 
 export interface CreateSignalPayload {
@@ -192,6 +243,7 @@ export interface CreateSignalPayload {
     lat?: number;
     lng?: number;
     timelineDays: number;
+    address?: string;
     signalStrength: string;
 }
 
@@ -206,12 +258,12 @@ export const signalsApi = {
                 .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
                 .join('&')
             : '';
-        return apiFetch<ApiSignal[] | { content: ApiSignal[] }>(`/api/signals${qs}`).then(res => {
+        return apiFetch<ApiUnifiedPost[] | { content: ApiUnifiedPost[] }>(`/api/signals${qs}`).then(res => {
             console.log('signalsApi.getAll response:', res);
             if (res.data && typeof res.data === 'object' && !Array.isArray(res.data) && 'content' in res.data) {
-                return { ...res, data: (res.data as any).content as ApiSignal[] };
+                return { ...res, data: (res.data as any).content as ApiUnifiedPost[] };
             }
-            return res as { data: ApiSignal[] | null; error: string | null; status: number };
+            return res as { data: ApiUnifiedPost[] | null; error: string | null; status: number };
         });
     },
 
@@ -222,6 +274,10 @@ export const signalsApi = {
     /** GET /api/signals/:id — public */
     getById: (id: string) =>
         apiFetch<ApiSignal>(`/api/signals/${id}`),
+
+    /** GET /api/signals/cities — returns unique cities from signals and spaces */
+    getCities: () =>
+        apiFetch<string[]>('/api/signals/cities'),
 
     /** POST /api/signals — requires Firebase auth token */
     create: (payload: CreateSignalPayload) =>
@@ -234,6 +290,13 @@ export const signalsApi = {
     delete: (id: string) =>
         apiFetch<void>(`/api/signals/${id}`, { method: 'DELETE' }),
 
+    /** POST /api/signals/spaces — requires auth */
+    createSpace: (payload: { name: string; type: string; city: string; state: string; address: string; description: string; lat: number; lng: number; contact?: string; website?: string }) =>
+        apiFetch<any>('/api/signals/spaces', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+
     /** PUT /api/signals/:id — requires auth */
     update: (id: string, payload: Partial<CreateSignalPayload>) =>
         apiFetch<ApiSignal>(`/api/signals/${id}`, {
@@ -245,9 +308,17 @@ export const signalsApi = {
     getInsights: (id: string) =>
         apiFetch<any>(`/api/signals/${id}/insights`),
 
-    /** GET /api/signals/nearby — public */
-    getNearby: (lat: number, lng: number, radiusKm: number = 10) =>
-        apiFetch<any>(`/api/signals/nearby?lat=${lat}&lng=${lng}&radiusKm=${radiusKm}`),
+    /** GET /api/signals/nearby — returns { signals, nearbySpaces, users } */
+    getNearby: (lat: number, lng: number, radiusKm: number = 25, role: string = 'all') => 
+        apiFetch<{
+            signals: ApiSignal[];
+            nearbySpaces: any[];
+            users: ApiUser[];
+            latitude: number;
+            longitude: number;
+        }>(`/api/signals/nearby?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radiusKm=${radiusKm}&role=${role}&_t=${Date.now()}`, {
+            headers: { 'X-Skip-Auth': 'true' }
+        }),
 
     /** GET /api/signals/spaces — public */
     getSpaces: (lat: number, lng: number, radiusKm: number = 10) =>
@@ -308,34 +379,34 @@ export const usersApi = {
 export const commentsApi = {
     /** GET /api/signals/:signalId/comments — public */
     getForSignal: (signalId: string) =>
-        apiFetch<ApiComment[]>(`/api/signals/${signalId}/comments`),
+        apiFetch<ApiComment[]>(`/api/comments/signal/${signalId}`),
 
     /** POST /api/signals/:signalId/comments — requires auth */
     post: (signalId: string, content: string) =>
-        apiFetch<ApiComment>(`/api/signals/${signalId}/comments`, {
+        apiFetch<ApiComment>(`/api/comments/signal/${signalId}`, {
             method: 'POST',
             body: JSON.stringify({ content }),
         }),
 
     /** POST /api/signals/:signalId/comments/:parentId/reply — requires auth */
     postReply: (signalId: string, parentId: string, content: string) =>
-        apiFetch<ApiComment>(`/api/signals/${signalId}/comments/${parentId}/reply`, {
+        apiFetch<ApiComment>(`/api/comments/signal/${signalId}/${parentId}/reply`, {
             method: 'POST',
             body: JSON.stringify({ content }),
         }),
 
     /** DELETE /api/signals/:signalId/comments/:commentId — requires auth */
     delete: (signalId: string, commentId: string) =>
-        apiFetch<void>(`/api/signals/${signalId}/comments/${commentId}`, { method: 'DELETE' }),
+        apiFetch<void>(`/api/comments/signal/${signalId}/${commentId}`, { method: 'DELETE' }),
 };
 
 // ─── Connection API ──────────────────────────────────────────────────────────
 export const connectionsApi = {
     /** POST /api/connections/request */
-    sendRequest: (signalId: string | null, message: string, receiverId: string) =>
+    sendRequest: (signalId: string | null, message: string, receiverId: string, spaceId: string | null = null) =>
         apiFetch<any>('/api/connections/request', {
             method: 'POST',
-            body: JSON.stringify({ signalId, message, receiverId }),
+            body: JSON.stringify({ signalId, message, receiverId, spaceId }),
         }),
 
     /** GET /api/connections/pending — incoming for founder */
@@ -349,6 +420,10 @@ export const connectionsApi = {
     /** GET /api/connections/accepted */
     getAccepted: () =>
         apiFetch<any[]>('/api/connections/accepted'),
+
+    /** GET /api/connections/user/:userId/accepted */
+    getAcceptedForUser: (userId: string) =>
+        apiFetch<any[]>(`/api/connections/user/${userId}/accepted`),
 
     /** PUT /api/connections/:id/accept */
     accept: (id: string) =>
@@ -383,6 +458,18 @@ export const offersApi = {
     /** GET /api/offers/:id/whatsapp */
     getWhatsappLink: (id: string) =>
         apiFetch<{ whatsappUrl: string }>(`/api/offers/${id}/whatsapp`),
+
+    /** POST /api/offers/:id/accept */
+    accept: (id: string) =>
+        apiFetch<any>(`/api/offers/${id}/accept`, { method: 'POST' }),
+
+    /** POST /api/offers/:id/reject */
+    reject: (id: string) =>
+        apiFetch<any>(`/api/offers/${id}/reject`, { method: 'POST' }),
+
+    /** DELETE /api/offers/:id */
+    delete: (id: string) =>
+        apiFetch<any>(`/api/offers/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Notification API ────────────────────────────────────────────────────────
@@ -448,6 +535,14 @@ export const exploreApi = {
             method: 'POST',
             body: JSON.stringify(payload),
         }),
+
+    /** GET /api/explore/usage */
+    getUsage: () =>
+        apiFetch<{ used: number; limit: number; remaining: number }>('/api/explore/usage'),
+
+    /** GET /api/explore/reports */
+    getReports: () =>
+        apiFetch<any[]>('/api/explore/reports'),
 };
 
 // ─── Search API ──────────────────────────────────────────────────────────────
@@ -455,6 +550,43 @@ export const searchApi = {
     /** GET /api/search?q=query */
     search: (query: string) =>
         apiFetch<any>(`/api/search?q=${encodeURIComponent(query)}`),
+};
+
+export const subscriptionApi = {
+    /** GET /api/subscriptions/plans — public */
+    getPlans: () =>
+        apiFetch<any[]>('/api/subscriptions/plans'),
+
+    /** POST /api/subscriptions/create-order — requires auth */
+    createOrder: (plan: string) =>
+        apiFetch<any>('/api/subscriptions/create-order', {
+            method: 'POST',
+            body: JSON.stringify({ plan }),
+        }),
+
+    /** POST /api/subscriptions/verify — requires auth */
+    verifyPayment: (payload: { razorpayOrderId?: string; razorpaySubscriptionId?: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+        apiFetch<string>('/api/subscriptions/verify', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+
+    /** GET /api/subscriptions/status — requires auth */
+    getStatus: () =>
+        apiFetch<any>('/api/subscriptions/status'),
+};
+
+// ─── Reviews API ─────────────────────────────────────────────────────────────
+export const reviewsApi = {
+    add: (userId: string, rating: number, comment: string) =>
+        apiFetch<any>(`/api/reviews/${userId}`, {
+            method: 'POST',
+            body: JSON.stringify({ rating, comment })
+        }),
+    getForUser: (userId: string) =>
+        apiFetch<any[]>(`/api/reviews/${userId}`),
+    getSummary: (userId: string) =>
+        apiFetch<{ averageRating: number; totalReviews: number }>(`/api/reviews/${userId}/summary`)
 };
 
 export async function getAuthToken(): Promise<string | null> {

@@ -2,9 +2,10 @@
 
 import Sidebar from '@/components/feed/Sidebar'
 import MobileBottomNav from '@/components/feed/MobileBottomNav'
-import { MapPin, Globe, Twitter, Linkedin, Github, Signal, Zap, Camera, Upload, Users, BadgeCheck, Star, Edit3, Check, X, Link as LinkIcon, Clock, CreditCard, Receipt, AlertCircle } from 'lucide-react'
+import VerifiedAvatar from '@/components/feed/VerifiedAvatar'
+import { MapPin, Globe, Twitter, Linkedin, Github, Signal, Zap, Users, BadgeCheck, Star, Edit3, Check, X, Link as LinkIcon, Clock, CreditCard, Receipt, AlertCircle, Loader2 } from 'lucide-react'
 import Image from 'next/image'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSignalStore, getSignalExpiration } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
@@ -15,6 +16,11 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useLocalUserStore } from '@/store/useLocalUserStore'
+import { signalsApi, subscriptionsApi, offersApi, connectionsApi, usersApi } from '@/lib/apiClient'
+import StatusModal from '@/components/feed/StatusModal'
+import Toast from '@/components/feed/Toast'
+import NetworkModal from '@/components/feed/NetworkModal'
+
 
 export default function UserProfile() {
     const router = useRouter()
@@ -26,16 +32,34 @@ export default function UserProfile() {
         return url.startsWith('http') ? url : `https://${url}`
     }
 
+    const formatDate = (dateInput: any) => {
+        if (!dateInput) return '';
+        const val = typeof dateInput === 'number' ? dateInput : new Date(dateInput).getTime();
+        if (isNaN(val)) return '';
+        // If it's a small number (e.g. 1776483984), it's likely seconds since epoch
+        const ms = val < 10000000000 ? val * 1000 : val;
+        return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
     const extractHandle = (url: string | null | undefined, prefix = '@') => {
         if (!url) return ''
-        const parts = url.split('/').filter(Boolean)
-        const lastPart = parts[parts.length - 1] || ''
+        // Strip query parameters
+        const cleanUrl = url.split('?')[0]
+        // Get last segment of path
+        const parts = cleanUrl.split('/').filter(Boolean)
+        if (parts.length === 0) return ''
+        
+        const lastPart = parts[parts.length - 1]
+        // If it's a domain name (e.g. user just pasted linkedin.com), return empty or the domain
+        if (lastPart.includes('.')) return ''
+        
         return lastPart.startsWith('@') ? lastPart : `${prefix}${lastPart}`
     }
 
     const {
         isVerified = false,
-        subscription = 'Free',
+        subscription,
+        plan = 'Free',
         name = '',
         username = '',
         role = '',
@@ -48,17 +72,19 @@ export default function UserProfile() {
         avatarUrl = null
     } = user || {}
 
+    const displayPlan = plan || subscription || 'Free'
+
     const { signals } = useSignalStore()
     const { connections } = useNetworkStore()
-    const { getAverageRating, getRatingsFor } = useRatingStore()
+    const { summary, ratings: myRatings, fetchSummary, fetchRatingsFor } = useRatingStore()
     const { responses } = useResponseStore()
 
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
     const mySignals = signals.filter(s => s.username === username)
     const activeSignals = mySignals.filter(s => s.status === 'Active' && !getSignalExpiration(s).isExpired)
     const pastSignals = mySignals.filter(s => s.status === 'Solved' || getSignalExpiration(s).isExpired)
-    const avgRating = getAverageRating(username)
-    const myRatings = getRatingsFor(username)
+    const avgRating = summary?.averageRating || 0
+    // const myRatings = ... (from store)
     const [activeTab, setActiveTab] = useState<'active' | 'past' | 'responses' | 'payments'>('active')
     const [showAllActiveSignals, setShowAllActiveSignals] = useState(false)
     const { records: paymentHistory } = usePaymentStore()
@@ -71,16 +97,43 @@ export default function UserProfile() {
         name,
         role,
         city,
+        address: user?.address || '',
         bio,
         websiteUrl,
         linkedinUrl,
         twitterUrl,
         githubUrl,
         avatarUrl,
+        lat: user?.lat || null,
+        lng: user?.lng || null,
         handleBase: username
             ? username.split('_').slice(0, -1).join('_')
             : (name ? name.split(' ')[0].toLowerCase() : '')
     })
+
+    const [statusModal, setStatusModal] = useState<{
+        isOpen: boolean, 
+        type: 'upgrade' | 'duplicate' | 'error' | 'confirm', 
+        title: string, 
+        message: string,
+        onConfirm?: () => void
+    }>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: '',
+        onConfirm: undefined
+    })
+    const [toast, setToast] = useState<{isVisible: boolean, message: string, type: 'success' | 'error' | 'info'}>({
+        isVisible: false,
+        message: '',
+        type: 'success'
+    })
+    const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false)
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToast({ isVisible: true, message, type })
+    }
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
@@ -95,39 +148,182 @@ export default function UserProfile() {
                 name: user.name || '',
                 role: user.role || '',
                 city: user.city || '',
+                address: user.address || '',
                 bio: user.bio || '',
                 websiteUrl: user.websiteUrl || '',
                 linkedinUrl: user.linkedinUrl || '',
                 twitterUrl: user.twitterUrl || '',
                 githubUrl: user.githubUrl || '',
                 avatarUrl: user.avatarUrl || null,
+                lat: user.lat || null,
+                lng: user.lng || null,
                 handleBase: user.username ? user.username.split('_').slice(0, -1).join('_') : user.name.split(' ')[0]?.toLowerCase() || ''
             })
+            // Fetch ratings for self
+            if (user.id) {
+                fetchSummary(user.id);
+                fetchRatingsFor(user.id);
+            }
+            fetchUserContent();
         }
-    }, [user])
+    }, [user, fetchSummary, fetchRatingsFor])
 
-    const fileInputRef = useRef<HTMLInputElement>(null)
-    const onFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile') => {
-        const file = e.target.files?.[0]
-        if (file) {
-            const url = URL.createObjectURL(file)
-            setEditForm(prev => ({ ...prev, avatarUrl: url }))
+    const [isFetchingSignals, setIsFetchingSignals] = useState(false)
+    const [isFetchingPayments, setIsFetchingPayments] = useState(false)
+    const [isFetchingResponses, setIsFetchingResponses] = useState(false)
+    const [isFetchingConnections, setIsFetchingConnections] = useState(false)
+    
+    const [dbSignals, setDbSignals] = useState<any[]>([])
+    const [dbPayments, setDbPayments] = useState<any[]>([])
+    const [dbResponses, setDbResponses] = useState<any[]>([])
+    const [dbConnections, setDbConnections] = useState<any[]>([])
+    const [usage, setUsage] = useState<{signalsLeft: number, offersLeft: number, aiLeft: number} | null>(null)
+
+    const fetchUserContent = async () => {
+        setIsFetchingSignals(true);
+        setIsFetchingPayments(true);
+        setIsFetchingResponses(true);
+        setIsFetchingConnections(true);
+
+        try {
+            // 1. Fetch Signals
+            const { data: signalData } = await signalsApi.getMine();
+            if (signalData && signalData.signals) {
+                const mapped = signalData.signals.map((s: any) => ({
+                    ...s,
+                    title: s.title,
+                    description: s.description,
+                    category: s.category,
+                    strength: s.signalStrength || s.strength || '7',
+                    status: (s.status === 'open' || s.status === 'Active') ? 'Active' : s.status,
+                    stats: {
+                        responses: s.responseCount || 0,
+                        offers: s.offerCount || 0,
+                        views: s.viewCount || 0
+                    }
+                }));
+                setDbSignals(mapped);
+            }
+
+            // 2. Fetch Payments
+            const { data: paymentData } = await subscriptionsApi.getHistory();
+            if (paymentData) {
+                setDbPayments(paymentData.map((p: any) => ({
+                    id: p.id || p.razorpayOrderId,
+                    planName: p.plan || p.planName,
+                    amount: p.amountPaid ? p.amountPaid / 100 : (p.amount || 0),
+                    currency: p.currency || 'INR',
+                    dateTime: p.createdAt || p.dateTime || p.startsAt,
+                    status: (p.status === 'ACTIVE' || p.status === 'SUCCESS' || p.status === 'Successful') ? 'Successful' : p.status
+                })));
+            }
+
+            // 3. Fetch Responses (Offers sent + Connections sent)
+            const [{ data: offers }, { data: conns }, { data: acceptedConns }] = await Promise.all([
+                offersApi.getSent(),
+                connectionsApi.getSent(),
+                connectionsApi.getAccepted()
+            ]);
+
+            const consolidated: any[] = [];
+            if (offers) {
+                offers.forEach((o: any) => consolidated.push({
+                    id: o.id,
+                    signalId: o.signalId,
+                    signalTitle: o.signalTitle || 'Signal Interest',
+                    signalUsername: o.signalUsername || 'Founder',
+                    signalCategory: o.signalCategory || 'Opportunity',
+                    respondedAt: new Date(o.createdAt).getTime()
+                }));
+            }
+            if (conns) {
+                conns.forEach((c: any) => consolidated.push({
+                    id: c.id,
+                    signalId: c.signalId,
+                    signalTitle: c.signalTitle || 'Network Request',
+                    signalUsername: c.receiverUsername || 'User',
+                    signalCategory: 'Networking',
+                    respondedAt: new Date(c.createdAt).getTime()
+                }));
+            }
+            setDbResponses(consolidated.sort((a, b) => b.respondedAt - a.respondedAt));
+
+            // 4. Set Connections
+            if (acceptedConns) {
+                setDbConnections(acceptedConns);
+            }
+
+            // 5. Fetch Usage
+            const { data: usageData } = await subscriptionsApi.getStatus();
+            if (usageData) {
+                setUsage({
+                    signalsLeft: usageData.signalsLeft,
+                    offersLeft: usageData.offersLeft,
+                    aiLeft: usageData.aiLeft
+                });
+            }
+
+        } catch (err) {
+            console.error('Failed to fetch profile content', err);
+        } finally {
+            setIsFetchingSignals(false);
+            setIsFetchingPayments(false);
+            setIsFetchingResponses(false);
+            setIsFetchingConnections(false);
         }
     }
 
-    const handleSave = () => {
-        if (editForm.websiteUrl && !isValidUrl(editForm.websiteUrl)) {
-            alert('Invalid Website URL')
+    const myActiveSignals = dbSignals.filter(s => (s.status === 'Active' || s.status === 'open') && !getSignalExpiration(s).isExpired)
+    const myPastSignals = dbSignals.filter(s => s.status === 'Solved' || s.status === 'EXPIRED' || getSignalExpiration(s).isExpired)
+
+
+    const handleSave = async () => {
+        if (editForm.websiteUrl && !editForm.websiteUrl.includes('.')) {
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Invalid URL',
+                message: 'Please enter a valid website URL.'
+            })
             return
         }
         const formattedRole = editForm.role.toLowerCase().trim().replace(/[\s/]+/g, '').replace(/[^a-z0-9]+/g, '')
         const formattedBase = editForm.handleBase.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '')
         const newUsername = `${formattedBase}_${formattedRole}`
 
-        updateUser({ ...editForm, username: newUsername })
-        // Keep local user store in sync so signals & login still match
-        if (user?.email) updateUserRecord(user.email, { username: newUsername })
-        setIsEditing(false)
+        const updatedProfile = { 
+            ...editForm, 
+            username: newUsername,
+            avatarUrl: editForm.avatarUrl // Explicitly include avatarUrl
+        }
+
+        // 1. Update backend
+        try {
+            const { data, error } = await usersApi.updateProfile(updatedProfile)
+            
+            if (!error) {
+                // 2. Update frontend store with backend response
+                updateUser(data || updatedProfile)
+                
+                // 3. Keep local user store in sync for legacy components
+                if (user?.email) updateUserRecord(user.email, { 
+                    username: newUsername,
+                    avatarUrl: editForm.avatarUrl 
+                })
+                
+                setIsEditing(false)
+                showToast('Profile updated successfully!')
+            } else {
+                throw new Error(error)
+            }
+        } catch (error) {
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Update Failed',
+                message: 'Failed to save profile: ' + error
+            })
+        } finally {}
     }
 
     const handleCancel = () => {
@@ -136,6 +332,7 @@ export default function UserProfile() {
                 name: user.name || '', 
                 role: user.role || '', 
                 city: user.city || '', 
+                address: user.address || '',
                 bio: user.bio || '', 
                 websiteUrl: user.websiteUrl || '', 
                 linkedinUrl: user.linkedinUrl || '', 
@@ -143,6 +340,8 @@ export default function UserProfile() {
                 githubUrl: user.githubUrl || '', 
                 avatarUrl: user.avatarUrl || null, 
                 coverUrl: user.coverUrl || null, 
+                lat: user.lat || null,
+                lng: user.lng || null,
                 handleBase: user.username ? user.username.split('_').slice(0, -1).join('_') : user.name.split(' ')[0]?.toLowerCase() || '' 
             })
         }
@@ -184,9 +383,75 @@ export default function UserProfile() {
     const handleCancelSocial = () => {
         setSocialError('')
         if (user) {
-            setSocialForm({ linkedin: user.linkedin || '', twitter: user.twitter || '', github: user.github || '' })
+            setSocialForm({ linkedinUrl: user.linkedinUrl || '', twitterUrl: user.twitterUrl || '', githubUrl: user.githubUrl || '' })
         }
         setIsEditingSocial(false)
+    }
+
+    const [suggestions, setSuggestions] = useState<any[]>([])
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [isDetecting, setIsDetecting] = useState(false)
+
+    const fetchSuggestions = async (query: string) => {
+        if (query.length < 3) {
+            setSuggestions([]);
+            return;
+        }
+        try {
+            const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+            const data = await res.json();
+            if (data.features) {
+                setSuggestions(data.features);
+                setShowSuggestions(true);
+            }
+        } catch (error) {
+            console.error('Autocomplete error:', error);
+        }
+    };
+
+    const handleSelectSuggestion = (feature: any) => {
+        const { name, city: cityName, state } = feature.properties;
+        const [lng, lat] = feature.geometry.coordinates;
+        const fullAddress = [name, cityName, state].filter(Boolean).join(', ');
+        setEditForm({ 
+            ...editForm, 
+            address: fullAddress, 
+            city: cityName || name,
+            lat,
+            lng
+        });
+        setShowSuggestions(false);
+    };
+
+    const handleUseCurrentLocation = () => {
+        if ("geolocation" in navigator) {
+            setIsDetecting(true)
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    // Set coordinates immediately so they are never null
+                    setEditForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
+                    
+                    try {
+                        const response = await fetch(`https://photon.komoot.io/api/reverse?lon=${longitude}&lat=${latitude}`);
+                        const data = await response.json();
+                        if (data.features && data.features[0]) {
+                            const feat = data.features[0].properties;
+                            const fullAddr = [feat.name, feat.city, feat.state].filter(Boolean).join(', ');
+                            const cityFound = feat.city || feat.state || 'Selected Location';
+                            setEditForm(prev => ({ ...prev, address: fullAddr, city: cityFound }));
+                        } else {
+                            setEditForm(prev => ({ ...prev, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, city: 'Selected Location' }));
+                        }
+                    } catch (error) {
+                        console.error("Geocoding failed", error);
+                        setEditForm(prev => ({ ...prev, address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, city: 'Selected Location' }));
+                    }
+                    setIsDetecting(false);
+                },
+                () => setIsDetecting(false)
+            );
+        }
     }
 
     if (!isAuthenticated || !user) return <div className="min-h-screen bg-background flex justify-center items-center text-text-muted">Loading...</div>;
@@ -196,7 +461,7 @@ export default function UserProfile() {
             <div className="max-w-[1400px] w-full flex flex-col md:flex-row pb-16 md:pb-0">
                 <Sidebar />
 
-                <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => onFileChange(e, 'profile')} accept="image/*" />
+
 
                 <main className="flex-1 w-full max-w-[680px] md:border-r border-border min-h-screen p-0">
 
@@ -205,19 +470,14 @@ export default function UserProfile() {
                         <div className="flex items-start gap-6">
                             {/* Avatar */}
                             <div className="relative shrink-0">
-                                <div className="w-24 h-24 bg-white rounded-2xl border-2 border-border shadow-lg relative overflow-hidden">
-                                    {(isEditing ? editForm.avatarUrl : avatarUrl) ? (
-                                        <Image src={isEditing ? editForm.avatarUrl! : avatarUrl!} alt="Profile" fill className="object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full bg-surface-2 flex items-center justify-center">
-                                            <Users className="w-10 h-10 text-text-muted" />
-                                        </div>
-                                    )}
-                                    {isEditing && (
-                                        <button onClick={() => handleUpload('profile')} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white">
-                                            <Camera className="w-5 h-5 mb-1" /><span className="text-[9px] font-bold uppercase">Change</span>
-                                        </button>
-                                    )}
+                                <div className="w-24 h-24 bg-white rounded-2xl border-2 border-border shadow-lg relative overflow-hidden flex items-center justify-center">
+                                    <VerifiedAvatar 
+                                        username={isEditing ? editForm.name : (user.name || user.username)}
+                                        avatarUrl={isEditing ? editForm.avatarUrl : user.avatarUrl}
+                                        plan={user.plan}
+                                        size="w-full h-full"
+                                        className="!rounded-none"
+                                    />
                                 </div>
                             </div>
 
@@ -230,27 +490,117 @@ export default function UserProfile() {
                                                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Full Name</label>
                                                 <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-surface-1 border border-border p-2 rounded-md font-display text-xl focus:ring-1 focus:ring-primary outline-none" />
                                             </div>
-                                            <div className="flex-1">
-                                                <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Role</label>
-                                                <input value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full bg-surface-1 border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" />
+                                            <div className="flex-1 opacity-60">
+                                                <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Role (Permanent)</label>
+                                                <input value={editForm.role} disabled className="w-full bg-surface-2 border border-border p-2 rounded-md text-sm cursor-not-allowed outline-none" />
+                                                <p className="text-[9px] text-text-muted mt-1 italic">Role cannot be changed after creation.</p>
                                             </div>
                                         </div>
                                         <div className="flex flex-col sm:flex-row gap-3">
-                                            <div className="flex-1">
-                                                <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Location</label>
-                                                <div className="relative"><MapPin className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" /><input value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" /></div>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <div className="flex-[2] relative">
+                                                <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block flex justify-between items-center">
+                                                    Address (Autocomplete)
+                                                    <button 
+                                                        type="button"
+                                                        onClick={handleUseCurrentLocation}
+                                                        className="text-primary hover:underline font-bold uppercase text-[9px] flex items-center gap-1 bg-primary/5 px-2 py-0.5 rounded-full"
+                                                    >
+                                                        {isDetecting ? 'Detecting...' : 'Detect My Location'}
+                                                    </button>
+                                                </label>
+                                                <div className="relative">
+                                                    <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                                                    <input 
+                                                        value={editForm.address} 
+                                                        onChange={(e) => {
+                                                            setEditForm({ ...editForm, address: e.target.value });
+                                                            fetchSuggestions(e.target.value);
+                                                        }} 
+                                                        placeholder="Street address or landmark"
+                                                        className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" 
+                                                    />
+                                                </div>
+                                                
+                                                <AnimatePresence>
+                                                    {showSuggestions && suggestions.length > 0 && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 5 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-xl overflow-hidden"
+                                                        >
+                                                            {suggestions.map((feat, idx) => (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => handleSelectSuggestion(feat)}
+                                                                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-2 transition-colors border-b border-border/50 last:border-0"
+                                                                >
+                                                                    <p className="font-bold text-black">{feat.properties.name}</p>
+                                                                    <p className="text-[9px] text-text-muted">
+                                                                        {[feat.properties.city, feat.properties.state].filter(Boolean).join(', ')}
+                                                                    </p>
+                                                                </button>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
                                             <div className="flex-1">
-                                                <label className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1 block">User Handle (editable)</label>
-                                                <input value={editForm.handleBase} onChange={(e) => setEditForm({ ...editForm, handleBase: e.target.value })} className="w-full bg-surface-1 border border-primary/30 p-2 rounded-md font-mono text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. krishna_k88" />
-                                                <p className="text-[10px] text-text-muted mt-1 font-mono">
-                                                    Preview: <span className="text-primary font-bold">
-                                                        @{editForm.handleBase.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '') || '…'}_{editForm.role.toLowerCase().trim().replace(/[\s/]+/g, '').replace(/[^a-z0-9]+/g, '') || 'role'}
-                                                    </span>
-                                                </p>
+                                                <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">City</label>
+                                                <input 
+                                                    value={editForm.city} 
+                                                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} 
+                                                    className="w-full bg-surface-1 border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" 
+                                                />
                                             </div>
                                         </div>
                                         <div>
+                                            <label className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1 block">User Handle (editable)</label>
+                                            <input value={editForm.handleBase} onChange={(e) => setEditForm({ ...editForm, handleBase: e.target.value })} className="w-full bg-surface-1 border border-primary/30 p-2 rounded-md font-mono text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. krishna_k88" />
+                                            <p className="text-[10px] text-text-muted mt-1 font-mono">
+                                                Preview: <span className="text-primary font-bold">
+                                                    @{editForm.handleBase.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '') || '…'}_{editForm.role.toLowerCase().trim().replace(/[\s/]+/g, '').replace(/[^a-z0-9]+/g, '') || 'role'}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 block">Select Avatar</label>
+                                            <div className="grid grid-cols-4 gap-2 mb-4">
+                                                {[1, 2, 3, 4].map(num => {
+                                                    const url = `/avatars/avatar${num}.svg`;
+                                                    const isSelected = editForm.avatarUrl === url;
+                                                    return (
+                                                        <button 
+                                                            key={num}
+                                                            type="button"
+                                                            onClick={() => setEditForm({ ...editForm, avatarUrl: url })}
+                                                            className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                                                                isSelected ? 'border-primary shadow-sm' : 'border-border grayscale hover:grayscale-0'
+                                                            }`}
+                                                        >
+                                                            <VerifiedAvatar 
+                                                                username={editForm.name || 'User'}
+                                                                avatarUrl={url}
+                                                                size="w-full h-full"
+                                                                className="!rounded-none"
+                                                            />
+                                                            {isSelected && <div className="absolute inset-0 bg-primary/10 flex items-center justify-center z-10"><Check className="w-4 h-4 text-primary" /></div>}
+                                                        </button>
+                                                    );
+                                                })}
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setEditForm({ ...editForm, avatarUrl: null })}
+                                                    className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all flex flex-col items-center justify-center text-[10px] font-bold uppercase ${
+                                                        !editForm.avatarUrl ? 'border-primary bg-primary/5 text-primary' : 'border-border text-text-muted hover:border-text-muted'
+                                                    }`}
+                                                >
+                                                    Initials
+                                                    {!editForm.avatarUrl && <Check className="w-3 h-3 mt-1" />}
+                                                </button>
+                                            </div>
+                                            
                                             <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Bio</label>
                                             <textarea value={editForm.bio} onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })} rows={2} className="w-full bg-surface-1 border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none resize-none" />
                                         </div>
@@ -263,8 +613,8 @@ export default function UserProfile() {
                                     <>
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <h1 className="text-2xl font-display">{name}</h1>
-                                            {(isVerified || subscription === 'Pro' || subscription === 'Founder') && (
-                                                <span title={`${subscription} Verified`} className="relative inline-flex items-center justify-center">
+                                            {(isVerified || displayPlan === 'Pro' || displayPlan === 'Founder' || displayPlan === 'TRIAL') && (
+                                                <span title={`${displayPlan} Verified`} className="relative inline-flex items-center justify-center">
                                                     <BadgeCheck className="w-6 h-6 fill-black text-white" />
                                                 </span>
                                             )}
@@ -272,16 +622,50 @@ export default function UserProfile() {
                                         <p className="text-text-secondary text-sm font-medium mb-1 flex items-center gap-2">
                                             {role} • {city}
                                             <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-                                            <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border">{subscription} Account</span>
+                                            <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border">{displayPlan} Account</span>
+                                            {user?.planExpiresAt && (
+                                                <span className="text-[10px] text-text-muted font-medium">
+                                                    Expires: {formatDate(user.planExpiresAt)}
+                                                </span>
+                                            )}
                                         </p>
                                         {bio ? (
                                             <p className="text-sm text-text-secondary leading-relaxed mb-3 max-w-md">{bio}</p>
                                         ) : (
                                             <p className="text-sm text-text-muted italic mb-3">No bio yet — click Edit Profile to add one.</p>
                                         )}
+                                        <div className="flex flex-wrap gap-4 sm:gap-8 mb-6 mt-4 p-4 bg-surface-2 rounded-2xl border border-border">
+                                            <div>
+                                                <p className="text-[9px] uppercase font-bold text-text-muted mb-1">Signals Left</p>
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="text-lg font-mono font-bold text-primary">{usage?.signalsLeft ?? '—'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="w-px h-8 bg-border hidden sm:block self-center" />
+                                            <div>
+                                                <p className="text-[9px] uppercase font-bold text-text-muted mb-1">Offers Left</p>
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="text-lg font-mono font-bold text-primary">{usage?.offersLeft ?? '—'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="w-px h-8 bg-border hidden sm:block self-center" />
+                                            <div>
+                                                <p className="text-[9px] uppercase font-bold text-text-muted mb-1">AI Calls Left</p>
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="text-lg font-mono font-bold text-primary">{usage?.aiLeft ?? '—'}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div className="flex gap-4 sm:gap-8 mb-3">
-                                            <div><p className="text-[10px] uppercase font-bold text-text-muted">Signals</p><p className="text-xl font-mono font-bold">{mySignals.length}</p></div>
-                                            <div><p className="text-[10px] uppercase font-bold text-text-muted">Connections</p><p className="text-xl font-mono font-bold">{connections.length}</p></div>
+                                            <div><p className="text-[10px] uppercase font-bold text-text-muted">Signals</p><p className="text-xl font-mono font-bold">{dbSignals.length}</p></div>
+                                            <div 
+                                                onClick={() => setIsNetworkModalOpen(true)}
+                                                className="cursor-pointer group"
+                                            >
+                                                <p className="text-[10px] uppercase font-bold text-text-muted group-hover:text-primary transition-colors">Connections</p>
+                                                <p className="text-xl font-mono font-bold group-hover:text-primary transition-colors">{dbConnections.length}</p>
+                                            </div>
                                             <div>
                                                 <p className="text-[10px] uppercase font-bold text-text-muted">Rating</p>
                                                 <div className="flex items-center gap-1"><p className="text-xl font-mono font-bold">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>{avgRating > 0 && <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />}</div>
@@ -293,7 +677,7 @@ export default function UserProfile() {
                                                 <Edit3 className="w-3.5 h-3.5" /> Edit Profile
                                             </button>
                                             <Link href="/subscription" className="px-4 py-2 border border-border rounded-md text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2">
-                                                <Star className="w-3.5 h-3.5" /> {subscription === 'Free' ? 'Upgrade' : 'My Plan'}
+                                                <Star className="w-3.5 h-3.5" /> {displayPlan === 'Free' ? 'Upgrade' : 'My Plan'}
                                             </Link>
                                         </div>
                                     </>
@@ -305,13 +689,13 @@ export default function UserProfile() {
                     {/* Signals Feed Section */}
                     <div className="p-8">
                         <div className="flex items-center gap-6 sm:gap-8 border-b border-border mb-8 overflow-x-auto whitespace-nowrap">
-                            <button
+                             <button
                                 onClick={() => setActiveTab('active')}
                                 className={`pb-4 border-b-2 font-bold text-xs uppercase tracking-widest transition-all ${
                                     activeTab === 'active' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'
                                 }`}
                             >
-                                Active Signals ({activeSignals.length})
+                                Active Signals ({myActiveSignals.length})
                             </button>
                             <button
                                 onClick={() => setActiveTab('past')}
@@ -319,7 +703,7 @@ export default function UserProfile() {
                                     activeTab === 'past' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'
                                 }`}
                             >
-                                Past History ({pastSignals.length})
+                                Past History ({myPastSignals.length})
                             </button>
                             <button
                                 onClick={() => setActiveTab('responses')}
@@ -327,7 +711,7 @@ export default function UserProfile() {
                                     activeTab === 'responses' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'
                                 }`}
                             >
-                                My Responses ({responses.length})
+                                My Responses ({dbResponses.length})
                             </button>
                             <button
                                 onClick={() => setActiveTab('payments')}
@@ -335,22 +719,28 @@ export default function UserProfile() {
                                     activeTab === 'payments' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-primary'
                                 }`}
                             >
-                                Payment History ({paymentHistory.length})
+                                Payment History ({dbPayments.length})
                             </button>
                         </div>
 
                         <div className="space-y-6">
                             {/* ACTIVE SIGNALS TAB */}
                             {activeTab === 'active' && (
-                                activeSignals.length === 0 ? (
+                                isFetchingSignals ? (
+                                    <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                                ) : myActiveSignals.length === 0 ? (
                                     <div className="flex flex-col items-center py-16 text-center text-text-muted">
                                         <Zap className="w-10 h-10 mb-3 opacity-30" />
                                         <p className="text-sm">No active signals. Raise one from the Home Feed!</p>
                                     </div>
                                 ) : (
                                     <>
-                                        {(showAllActiveSignals ? activeSignals : activeSignals.slice(0, 3)).map(signal => (
-                                            <div key={signal.id} className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all mb-4">
+                                        {(showAllActiveSignals ? myActiveSignals : myActiveSignals.slice(0, 3)).map(signal => (
+                                            <div 
+                                                key={signal.id} 
+                                                onClick={() => router.push(`/signals/${signal.id}`)}
+                                                className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all mb-4 cursor-pointer"
+                                            >
                                                 <div className="flex justify-between items-start mb-4">
                                                     <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
                                                     <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">● Active</span>
@@ -365,12 +755,12 @@ export default function UserProfile() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {activeSignals.length > 3 && (
+                                        {myActiveSignals.length > 3 && (
                                             <button
                                                 onClick={() => setShowAllActiveSignals(!showAllActiveSignals)}
                                                 className="w-full py-3 rounded-xl border border-border text-sm font-bold hover:bg-surface-2 transition-all mt-2 text-black"
                                             >
-                                                {showAllActiveSignals ? 'View Less' : `View All ${activeSignals.length} Signals`}
+                                                {showAllActiveSignals ? 'View Less' : `View All ${myActiveSignals.length} Signals`}
                                             </button>
                                         )}
                                     </>
@@ -379,14 +769,20 @@ export default function UserProfile() {
 
                             {/* PAST HISTORY TAB */}
                             {activeTab === 'past' && (
-                                pastSignals.length === 0 ? (
+                                isFetchingSignals ? (
+                                    <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                                ) : myPastSignals.length === 0 ? (
                                     <div className="flex flex-col items-center py-16 text-center text-text-muted">
                                         <Clock className="w-10 h-10 mb-3 opacity-30" />
                                         <p className="text-sm">No past signals yet.</p>
                                     </div>
                                 ) : (
-                                    pastSignals.map(signal => (
-                                        <div key={signal.id} className="p-6 bg-surface-2 rounded-2xl border border-border group transition-all opacity-75">
+                                    myPastSignals.map(signal => (
+                                        <div 
+                                            key={signal.id} 
+                                            onClick={() => router.push(`/signals/${signal.id}`)}
+                                            className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all mb-4 cursor-pointer opacity-80"
+                                        >
                                             <div className="flex justify-between items-start mb-4">
                                                 <span className="text-[10px] px-2 py-0.5 bg-text-muted text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
                                                 {signal.status === 'Solved' ? (
@@ -404,20 +800,27 @@ export default function UserProfile() {
 
                             {/* MY RESPONSES TAB */}
                             {activeTab === 'responses' && (
-                                responses.length === 0 ? (
+                                isFetchingResponses ? (
+                                    <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                                ) : dbResponses.length === 0 ? (
                                     <div className="flex flex-col items-center py-16 text-center text-text-muted">
                                         <Users className="w-10 h-10 mb-3 opacity-30" />
                                         <p className="text-sm">You haven't responded to any signals yet.</p>
                                     </div>
                                 ) : (
-                                    responses.map(r => (
-                                        <div key={r.id} className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all">
+                                    dbResponses.map(r => (
+                                        <div 
+                                            key={r.id} 
+                                            onClick={() => r.signalId && router.push(`/signals/${r.signalId}`)}
+                                            className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all mb-4 cursor-pointer"
+                                        >
                                             <div className="flex justify-between items-start mb-4">
                                                 <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{r.signalCategory}</span>
                                                 <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Responded</span>
                                             </div>
                                             <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{r.signalTitle}</h3>
                                             <p className="text-xs text-text-muted">Signal by @{r.signalUsername}</p>
+                                            <p className="text-[9px] text-text-muted mt-2 uppercase font-bold tracking-tighter opacity-60">Interaction on {new Date(r.respondedAt).toLocaleDateString()}</p>
                                         </div>
                                     ))
                                 )
@@ -425,7 +828,9 @@ export default function UserProfile() {
 
                             {/* PAYMENT HISTORY TAB */}
                             {activeTab === 'payments' && (
-                                paymentHistory.length === 0 ? (
+                                isFetchingPayments ? (
+                                    <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                                ) : dbPayments.length === 0 ? (
                                     <div className="flex flex-col items-center py-20 text-center text-text-muted">
                                         <div className="w-16 h-16 bg-surface-2 rounded-2xl flex items-center justify-center mb-4">
                                             <Receipt className="w-8 h-8 opacity-20" />
@@ -434,7 +839,7 @@ export default function UserProfile() {
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {paymentHistory.map((record) => (
+                                        {dbPayments.map((record: any) => (
                                             <div key={record.id} className="p-6 bg-white border border-border rounded-3xl group hover:border-black transition-all flex items-center justify-between shadow-sm hover:shadow-md">
                                                 <div className="flex items-center gap-5">
                                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${
@@ -453,7 +858,7 @@ export default function UserProfile() {
                                                         </div>
                                                         <div className="flex items-center gap-2 text-text-muted">
                                                             <Clock className="w-3 h-3" />
-                                                            <p className="text-[10px] font-mono font-bold uppercase tracking-widest">{record.dateTime}</p>
+                                                            <p className="text-[10px] font-mono font-bold uppercase tracking-widest">{formatDate(record.dateTime)}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -483,24 +888,25 @@ export default function UserProfile() {
                         
                         <button
                             onClick={() => {
-                                if (window.confirm('Are you absolutely sure you want to delete your account? This cannot be undone.')) {
-                                    const store = useLocalUserStore.getState()
-                                    // Make sure we have the active user's email
-                                    if (user) {
-                                        store.deleteUser(user.email)
-                                    } else {
-                                        // Backup: use the auth store email
-                                        const authUser = useAuthStore.getState().user
-                                        if (authUser?.email) store.deleteUser(authUser.email)
+                                setStatusModal({
+                                    isOpen: true,
+                                    type: 'confirm',
+                                    title: 'Delete Account?',
+                                    message: 'Are you absolutely sure you want to delete your account? This action is permanent and cannot be undone.',
+                                    onConfirm: () => {
+                                        const store = useLocalUserStore.getState()
+                                        if (user) {
+                                            store.deleteUser(user.email)
+                                        } else {
+                                            const authUser = useAuthStore.getState().user
+                                            if (authUser?.email) store.deleteUser(authUser.email)
+                                        }
+                                        useNetworkStore.getState().clearAll()
+                                        useResponseStore.getState().clearAll()
+                                        useAuthStore.getState().clearAuth()
+                                        router.push('/auth')
                                     }
-                                    
-                                    // Wipe local simulated stores so a new account doesn't inherit them
-                                    useNetworkStore.getState().clearAll()
-                                    useResponseStore.getState().clearAll()
-                                    
-                                    useAuthStore.getState().clearAuth()
-                                    router.push('/auth')
-                                }
+                                })
                             }}
                             className="w-full flex items-center justify-center gap-2 py-3 border border-red-200/50 text-red-500 rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-red-500/10 transition-colors"
                         >
@@ -637,38 +1043,67 @@ export default function UserProfile() {
                     <div className="bg-primary p-6 rounded-2xl text-white shadow-xl relative overflow-hidden group">
                         <div className="relative z-10">
                             <h3 className="font-display text-xl mb-2">
-                                {subscription === 'Free' ? 'Upgrade Your Plan' : 'Manage Your Plan'}
+                                {displayPlan === 'Free' ? 'Upgrade Your Plan' : 'Manage Your Plan'}
                             </h3>
                             <p className="text-white/70 text-sm mb-6 leading-relaxed">
-                                {subscription === 'Free'
+                                {displayPlan === 'Free'
                                     ? 'Unlock verified badges, unlimited signals, and AI market intelligence.'
-                                    : 'View your current benefits, usage, and manage your subscription.'}
+                                    : `View your current benefits, usage, and manage your subscription.${user?.planExpiresAt ? ` Plan expires on ${formatDate(user.planExpiresAt)}.` : ''}`}
                             </p>
                             <button
                                 onClick={() => router.push('/subscription')}
                                 className="w-full bg-white text-black py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-surface-2 transition-colors"
                             >
-                                {subscription === 'Free' ? 'Upgrade Now →' : 'View Plan →'}
+                                {displayPlan === 'Free' ? 'Upgrade Now →' : 'View Plan →'}
                             </button>
                         </div>
                         <Signal className="absolute -bottom-10 -right-10 w-48 h-48 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-1000" />
                     </div>
 
-                    {/* Sponsored Card */}
-                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-3">Sponsored</p>
-                        <h3 className="font-display text-lg mb-2 leading-snug">Want to run ads here?</h3>
-                        <p className="text-sm text-text-secondary leading-relaxed mb-5">Reach 1000s of founders, investors &amp; mentors in our ecosystem.</p>
+                    <div className="bg-white border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
+                        <div className="absolute top-3 right-3">
+                            <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-3 opacity-50">Ad Network</p>
+                        <h3 className="font-display text-lg mb-2 leading-snug">Targeted ecosystem ads</h3>
+                        <p className="text-sm text-text-secondary leading-relaxed mb-5">Reach 1000s of founders, investors &amp; mentors directly in their feed.</p>
                         <button
-                            onClick={() => router.push('/subscription')}
-                            className="w-full bg-black text-white py-3 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-primary transition-colors"
+                            disabled
+                            className="w-full bg-surface-2 text-text-muted py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-not-allowed border border-border transition-all"
                         >
-                            Get started →
+                            Coming Soon
                         </button>
                     </div>
                 </aside>
                 <MobileBottomNav />
             </div>
+
+            <NetworkModal 
+                isOpen={isNetworkModalOpen}
+                onClose={() => setIsNetworkModalOpen(false)}
+                connections={dbConnections}
+                currentUserId={user?.id}
+            />
+
+            <StatusModal 
+                isOpen={statusModal.isOpen}
+                onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={statusModal.onConfirm}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+                confirmText="Yes, Delete Everything"
+                cancelText="No, Keep My Account"
+            />
+
+            <Toast 
+                isVisible={toast.isVisible}
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
+            />
         </div>
     )
 }

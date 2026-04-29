@@ -12,8 +12,10 @@ import java.util.UUID;
 public class CommentResponseDTO {
     private UUID id;
     private UUID signalId;
+    private UUID spaceId;
     private UUID userId;
     private String username;
+    private String avatarUrl;
     private String content;
     private UUID parentId;
     private OffsetDateTime createdAt;

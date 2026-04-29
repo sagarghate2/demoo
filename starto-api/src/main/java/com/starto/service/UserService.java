@@ -6,25 +6,23 @@ import com.starto.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.http.ResponseEntity;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.security.core.Authentication;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
-import com.starto.service.PresenceService;
+import java.math.BigDecimal;
 import com.starto.service.NotificationService;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.UserRecord;
+import com.starto.service.EmailService;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PresenceService presenceService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
 
  public Optional<User> getUserByFirebaseUid(String firebaseUid) {
@@ -59,17 +57,33 @@ public class UserService {
         
         System.out.println("USER EMAIL: " + user.getEmail());
         System.out.println("USER PLAN: " + user.getPlan());
-        user.setIsOnline(true);
-        user.setLastSeen(OffsetDateTime.now());
-        userRepository.save(user);
     });
     
     System.out.println("RETURNING: " + userOpt.isPresent());
     return userOpt;
 }
 
+@Transactional
+public void syncVerificationAndSendWelcome(User user) {
+    if (user.getWelcomeEmailSent() != null && user.getWelcomeEmailSent()) {
+        return; // Already sent
+    }
 
-@Cacheable(value = "userCache", key = "#firebaseUid")
+    try {
+        UserRecord userRecord = FirebaseAuth.getInstance().getUser(user.getFirebaseUid());
+        if (userRecord.isEmailVerified()) {
+            user.setIsVerified(true);
+            user.setWelcomeEmailSent(true);
+            userRepository.save(user);
+            emailService.sendWelcomeEmail(user);
+            System.out.println("WELCOME EMAIL SENT TO VERIFIED USER: " + user.getEmail());
+        }
+    } catch (Exception e) {
+        System.err.println("FAILED TO SYNC VERIFICATION FOR: " + user.getEmail() + " | " + e.getMessage());
+    }
+}
+
+
 public User getUserCached(String firebaseUid) {
     return userRepository.findByFirebaseUid(firebaseUid).orElse(null);
 }
@@ -85,7 +99,11 @@ public User createOrUpdateUser(String firebaseUid,
                                  String state,
                                  String country,
                                  String gender,
-                                 String bio) {
+                                 String bio,
+                                 String avatarUrl,
+                                 BigDecimal lat,
+                                 BigDecimal lng,
+                                 String address) {
 
     return userRepository.findByFirebaseUid(firebaseUid)
             .map(user -> {
@@ -100,6 +118,10 @@ public User createOrUpdateUser(String firebaseUid,
                 if (user.getPhone() == null) user.setPhone(phone);
                 if (user.getGender() == null) user.setGender(gender);
                 if (user.getBio() == null) user.setBio(bio);
+                if (user.getAvatarUrl() == null) user.setAvatarUrl(avatarUrl);
+                if (user.getLat() == null) user.setLat(lat);
+                if (user.getLng() == null) user.setLng(lng);
+                if (user.getAddress() == null) user.setAddress(address);
 
                 return userRepository.save(user);
             })
@@ -118,6 +140,10 @@ public User createOrUpdateUser(String firebaseUid,
                         .country(country != null ? country : "India")
                         .gender(gender)
                         .bio(bio)
+                        .avatarUrl(avatarUrl)
+                        .lat(lat)
+                        .lng(lng)
+                        .address(address)
                         .username(finalUsername)
                         .plan(Plan.EXPLORER)
                         .isOnline(true)
@@ -128,7 +154,6 @@ public User createOrUpdateUser(String firebaseUid,
             });
 }
 
-@CacheEvict(value = "userCache", key = "#user.firebaseUid")
     @Transactional
 public User updateProfile(User user) {
 
@@ -144,8 +169,10 @@ if (user.getTwitterUrl() != null) existing.setTwitterUrl(user.getTwitterUrl());
 if (user.getGithubUrl() != null) existing.setGithubUrl(user.getGithubUrl());
 if (user.getLat() != null) existing.setLat(user.getLat());
 if (user.getLng() != null) existing.setLng(user.getLng());
+if (user.getAddress() != null) existing.setAddress(user.getAddress());
 if (user.getIndustry() != null) existing.setIndustry(user.getIndustry());
 if (user.getGender() != null) existing.setGender(user.getGender());
+if (user.getAvatarUrl() != null) existing.setAvatarUrl(user.getAvatarUrl());
 
     existing.setUpdatedAt(OffsetDateTime.now());
 
@@ -158,10 +185,23 @@ if (user.getGender() != null) existing.setGender(user.getGender());
 }
 
 
-@Cacheable(value = "userCache", key = "#username")
-public Optional<User> getUserByUsername(String username) {
-    return userRepository.findByUsername(username);
-}
+    public Optional<User> getUserByUsername(String username) {
+        System.out.println("[UserLookup] Searching for identifier: '" + username + "'");
+        // Smart Lookup: check if it's a UUID first
+        try {
+            java.util.UUID id = java.util.UUID.fromString(username);
+            System.out.println("[UserLookup] Detected UUID format. Fetching by ID...");
+            Optional<User> result = userRepository.findById(id);
+            System.out.println("[UserLookup] UUID Result Present: " + result.isPresent());
+            return result;
+        } catch (IllegalArgumentException e) {
+            // Not a UUID, proceed with username lookup
+            System.out.println("[UserLookup] Detected Username format. Fetching by handle...");
+            Optional<User> result = userRepository.findByUsername(username);
+            System.out.println("[UserLookup] Username Result Present: " + result.isPresent());
+            return result;
+        }
+    }
 
 private String generateUniqueUsername(String name, String role) {
 
@@ -180,7 +220,6 @@ private String generateUniqueUsername(String name, String role) {
 }
 
 
-@CacheEvict(value = "userCache", key = "#firebaseUid")
 @Transactional
 public void updatePresence(String firebaseUid) {
     userRepository.findByFirebaseUid(firebaseUid).ifPresent(user -> {
@@ -190,7 +229,6 @@ public void updatePresence(String firebaseUid) {
     });
 }
 
-  @CacheEvict(value = "userCache", key = "#firebaseUid")
     @Transactional
     public void markOffline(String firebaseUid) {
         userRepository.findByFirebaseUid(firebaseUid).ifPresent(user -> {

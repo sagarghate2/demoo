@@ -63,7 +63,7 @@ public class RateLimitFilter implements Filter {
     /** Standard: 60 per min — general, authenticated */
     private Bucket generalUserBucket() {
         return Bucket.builder()
-                .addLimit(Bandwidth.simple(60, Duration.ofMinutes(1)))
+                .addLimit(Bandwidth.simple(150, Duration.ofMinutes(1)))
                 .build();
     }
 

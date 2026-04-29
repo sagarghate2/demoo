@@ -26,4 +26,7 @@ public interface SignalViewRepository extends JpaRepository<SignalView, UUID> {
 
     long countBySignalIdAndIsFollower(UUID signalId, Boolean isFollower);
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteBySignalId(UUID signalId);
 }

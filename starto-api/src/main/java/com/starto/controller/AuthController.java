@@ -57,10 +57,13 @@ public class AuthController {
                 dto.getState(),
                 dto.getCountry(),
                 dto.getGender(),
-                dto.getBio()
+                dto.getBio(),
+                dto.getAvatarUrl(),
+                dto.getLat(),
+                dto.getLng(),
+                dto.getAddress()
         );
 
-        emailService.sendWelcomeEmail(user);
         return ResponseEntity.ok(user);
     }
 
@@ -70,8 +73,14 @@ public class AuthController {
             return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
         String firebaseUid = authentication.getPrincipal().toString();
+        
         return userService.getUserByFirebaseUid(firebaseUid)
-                .map(ResponseEntity::ok)
+                .map(user -> {
+                    // Sync verification status if not already set
+                    // and send welcome email if verified and not yet sent
+                    userService.syncVerificationAndSendWelcome(user);
+                    return ResponseEntity.ok(user);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 

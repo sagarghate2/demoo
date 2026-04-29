@@ -33,6 +33,14 @@ public class Comment {
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "space_id", nullable = true)
+    private NearbySpace nearbySpace;
+
+    @Column(name = "space_id", insertable = false, updatable = false)
+    private UUID spaceId;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -42,6 +50,9 @@ public class Comment {
     @Column(name = "username")
     private String username;
 
+    @org.hibernate.annotations.Formula("(SELECT u.avatar_url FROM users u WHERE u.id = user_id)")
+    private String avatarUrl;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
@@ -50,7 +61,7 @@ public class Comment {
     private UUID parentId;
 
     //  load replies automatically
-    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "parent_id")
     private List<Comment> replies;
 

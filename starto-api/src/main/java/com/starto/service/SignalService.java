@@ -2,6 +2,7 @@ package com.starto.service;
 
 import com.starto.dto.NearbyUserDTO;
 import com.starto.dto.SignalInsightsDTO;
+import com.starto.dto.UnifiedPostDTO;
 import com.starto.model.NearbySpace;
 import com.starto.model.Signal;
 import com.starto.model.SignalView;
@@ -25,6 +26,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.stream.Collectors;
+import com.starto.repository.CommentRepository;
 
 import org.springframework.security.access.AccessDeniedException;
 
@@ -48,6 +50,9 @@ public class SignalService {
     private final WebSocketService webSocketService;
     private final PlanService planService;
     private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
+
+    private static boolean syncedResponseCounts = false;
 
 
     @Caching(evict = {
@@ -64,25 +69,19 @@ public class SignalService {
 
 
     public void validateSignalCreation(User user) {
+        Plan plan = user.getPlan();
+        
+        OffsetDateTime planStart = user.getPlanExpiresAt() != null 
+            ? user.getPlanExpiresAt().minusDays(com.starto.config.PlanConfig.PLAN_DURATION_DAYS.getOrDefault(plan, 30))
+            : user.getCreatedAt();
 
-    System.out.println("=== validateSignalCreation called ===");
+        long count = signalRepository.countByUserIdAndCreatedAtAfter(user.getId(), planStart) +
+                     nearbySpaceRepository.countByUser_IdAndCreatedAtAfter(user.getId(), planStart);
 
-    
-
-    //  PLAN CONVERSION
-    Plan plan = user.getPlan();
-
-    //  COUNT USER SIGNALS
-    long signalCount = signalRepository.countByUserId(user.getId());
-
-    System.out.println("Plan: " + plan);
-    System.out.println("Signal Count: " + signalCount);
-
-    //  PLAN LIMIT CHECK
-    if (!planService.canPostSignal(plan, (int) signalCount)) {
-        throw new RuntimeException("Signal limit reached. Upgrade your plan.");
+        if (!planService.canPostSignal(plan, count)) {
+            throw new RuntimeException("Signal limit reached for your current plan. Upgrade for more.");
+        }
     }
-}
 
 @Caching(evict = {
     @CacheEvict(value = "signalCache", key = "#id"),
@@ -103,8 +102,6 @@ public class SignalService {
         if (updatedSignal.getLat() != null) existing.setLat(updatedSignal.getLat());
         if (updatedSignal.getLng() != null) existing.setLng(updatedSignal.getLng());
         if (updatedSignal.getTimelineDays() != null) existing.setTimelineDays(updatedSignal.getTimelineDays());
-        if (updatedSignal.getCompensation() != null) existing.setCompensation(updatedSignal.getCompensation());
-        if (updatedSignal.getVisibility() != null) existing.setVisibility(updatedSignal.getVisibility());
         if (updatedSignal.getSignalStrength() != null) existing.setSignalStrength(updatedSignal.getSignalStrength());
         if (updatedSignal.getExpiresAt() != null) existing.setExpiresAt(updatedSignal.getExpiresAt());
 
@@ -115,9 +112,83 @@ public class SignalService {
      * Fix #7 + #8: paginated feed with JOIN FETCH — eliminates N+1 user selects.
      * Accepts ?page=0 query param; returns Page<Signal> with 20 results per page.
      */
-    public Page<Signal> getSignalsFeed(int page) {
-        PageRequest pr = PageRequest.of(page, 20, Sort.by("createdAt").descending());
-        return signalRepository.findActiveWithUserPageable(pr);
+    /**
+     * Fix: Combined feed with signals and spaces.
+     * Maps both entities to UnifiedPostDTO and sorts by date.
+     */
+    public List<UnifiedPostDTO> getSignalsFeed(int page) {
+        if (!syncedResponseCounts) {
+            syncResponseCounts();
+            syncedResponseCounts = true;
+        }
+
+        // Fetch open signals
+        List<Signal> signals = signalRepository.findAllWithUser();
+        
+        // Fetch all spaces (JOIN FETCHed)
+        List<NearbySpace> spaces = nearbySpaceRepository.findAllWithUser();
+
+        List<UnifiedPostDTO> unifiedList = new ArrayList<>();
+
+        // Map Signals
+        for (Signal s : signals) {
+            unifiedList.add(UnifiedPostDTO.builder()
+                .id(s.getId())
+                .type("SIGNAL")
+                .title(s.getTitle())
+                .description(s.getDescription())
+                .category(s.getCategory())
+                .username(s.getUser().getUsername())
+                .userId(s.getUser().getId())
+                .userPlan(s.getUser().getPlan().name())
+                .avatarUrl(s.getUser().getAvatarUrl())
+                .createdAt(s.getCreatedAt())
+                .viewCount(s.getViewCount() != null ? s.getViewCount() : 0)
+                .responseCount(s.getResponseCount() != null && s.getResponseCount() > 0 ? s.getResponseCount() : commentRepository.countBySignalId(s.getId()))
+                .offerCount(s.getOfferCount() != null ? s.getOfferCount() : 0)
+                .lat(s.getLat() != null ? s.getLat().doubleValue() : null)
+                .lng(s.getLng() != null ? s.getLng().doubleValue() : null)
+                .city(s.getCity())
+                .state(s.getState())
+                .address(s.getAddress())
+                .build());
+        }
+
+        // Map Spaces
+        for (NearbySpace sp : spaces) {
+            unifiedList.add(UnifiedPostDTO.builder()
+                .id(sp.getId())
+                .type("SPACE")
+                .title(sp.getName())
+                .description(sp.getDescription())
+                .username(sp.getUser().getUsername())
+                .userId(sp.getUser().getId())
+                .userPlan(sp.getUser().getPlan().name())
+                .avatarUrl(sp.getUser().getAvatarUrl())
+                .createdAt(sp.getCreatedAt())
+                .spaceType(sp.getType())
+                .address(sp.getAddress())
+                .city(sp.getCity())
+                .state(sp.getState())
+                .contact(sp.getContact())
+                .website(sp.getWebsite())
+                .responseCount(sp.getResponseCount() != null && sp.getResponseCount() > 0 ? sp.getResponseCount() : commentRepository.countBySpaceId(sp.getId()))
+                .viewCount(sp.getViewCount() != null ? sp.getViewCount() : 0)
+                .offerCount(sp.getOfferCount() != null ? sp.getOfferCount() : 0)
+                .lat(sp.getLat() != null ? sp.getLat().doubleValue() : null)
+                .lng(sp.getLng() != null ? sp.getLng().doubleValue() : null)
+                .build());
+        }
+
+        // Sort by createdAt DESC
+        unifiedList.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+
+        // Manual Pagination (20 per page)
+        int start = page * 20;
+        if (start >= unifiedList.size()) return new ArrayList<>();
+        int end = Math.min(start + 20, unifiedList.size());
+        
+        return unifiedList.subList(start, end);
     }
 
     @Cacheable(value = "signalCache", key = "'activeSignals'")
@@ -141,51 +212,62 @@ public class SignalService {
     }
 
     @CacheEvict(value = "signalCache", key = "#signalId")
-   @Transactional
-public void trackView(UUID signalId, UUID viewerUserId) {
-
-
-
-    Boolean isFollower = false;
-
-   
-    UUID ownerId = getSignalById(signalId).getUserId();
-
-    if (viewerUserId != null) {
-
-        boolean alreadyViewed = signalViewRepository
-                .existsBySignalIdAndViewerUserId(signalId, viewerUserId);
-
-        if (alreadyViewed) return;
-
-    
-        isFollower =
-            connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(viewerUserId, ownerId, "ACCEPTED")
-            ||
-            connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(ownerId, viewerUserId, "ACCEPTED");
-    }
-
-    signalViewRepository.save(
-            SignalView.builder()
-                    .signalId(signalId)
-                    .viewerUserId(viewerUserId)
-                    .isFollower(isFollower)
-                    .build()
-    );
-
-    signalRepository.findById(signalId).ifPresent(signal -> {
-        signal.setViewCount(signal.getViewCount() + 1);
-        signalRepository.save(signal);
+    @Transactional    public void trackView(UUID postId, UUID viewerUserId) {
+        // Try Signal
+        Signal signal = signalRepository.findById(postId).orElse(null);
+        UUID ownerId = null;
+        boolean isSpace = false;
         
-        webSocketService.send(
-        "/topic/insights/" + signalId,
-        getInsights(signalId)
-    );
-    });
+        if (signal != null) {
+            ownerId = signal.getUserId();
+        } else {
+            NearbySpace space = nearbySpaceRepository.findById(postId).orElse(null);
+            if (space != null) {
+                ownerId = space.getUser().getId();
+                isSpace = true;
+            }
+        }
+        
+        if (ownerId == null) return; // Post not found
 
-   
+        Boolean isFollower = false;
+        if (viewerUserId != null) {
+            boolean alreadyViewed = signalViewRepository
+                    .existsBySignalIdAndViewerUserId(postId, viewerUserId);
 
-}
+            if (alreadyViewed) return;
+
+            isFollower =
+                connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(viewerUserId, ownerId, "ACCEPTED")
+                ||
+                connectionRepository.existsByRequester_IdAndReceiver_IdAndStatus(ownerId, viewerUserId, "ACCEPTED");
+        }
+
+        signalViewRepository.save(
+                SignalView.builder()
+                        .signalId(postId)
+                        .viewerUserId(viewerUserId)
+                        .isFollower(isFollower)
+                        .build()
+        );
+
+        if (!isSpace) {
+            signalRepository.findById(postId).ifPresent(s -> {
+                s.setViewCount(s.getViewCount() + 1);
+                signalRepository.save(s);
+                
+                webSocketService.send(
+                    "/topic/insights/" + postId,
+                    getInsights(postId)
+                );
+            });
+        } else {
+            nearbySpaceRepository.findById(postId).ifPresent(sp -> {
+                sp.setViewCount(sp.getViewCount() + 1);
+                nearbySpaceRepository.save(sp);
+            });
+        }
+    }
 
 
 
@@ -258,8 +340,8 @@ public List<Signal> getSignalsBySeeking(String seeking) {
         return signalRepository.findBySeeking(seeking);
     }
 
-    @Cacheable(value = "signalCache", key = "#lat + '-' + #lng + '-' + #radiusKm")
-    public List<Signal> getNearbySignals(double lat, double lng, double radiusKm) {
+    @Cacheable(value = "signalCache", key = "#lat + '-' + #lng + '-' + #radiusKm + '-' + #role")
+    public List<Signal> getNearbySignals(double lat, double lng, double radiusKm, String role) {
         if (lat == 0 && lng == 0) {
             return getActiveSignals();
         }
@@ -280,14 +362,14 @@ public List<Signal> getSignalsBySeeking(String seeking) {
                 .toList();
     }
 
-    public List<NearbySpace> getNearbySpaces(double lat, double lng, double radiusKm) {
-        double latDiff = radiusKm / 111.0;
-        double lngDiff = radiusKm / (111.0 * Math.cos(Math.toRadians(lat)));
+    public List<NearbySpace> getNearbySpaces(double lat, double lng, double radiusKm, String role) {
+        BigDecimal latDelta = BigDecimal.valueOf(radiusKm / 111.0);
+        BigDecimal lngDelta = BigDecimal.valueOf(radiusKm / (111.0 * Math.cos(Math.toRadians(lat))));
 
-        java.math.BigDecimal latMin = java.math.BigDecimal.valueOf(lat - latDiff);
-        java.math.BigDecimal latMax = java.math.BigDecimal.valueOf(lat + latDiff);
-        java.math.BigDecimal lngMin = java.math.BigDecimal.valueOf(lng - lngDiff);
-        java.math.BigDecimal lngMax = java.math.BigDecimal.valueOf(lng + lngDiff);
+        BigDecimal latMin = BigDecimal.valueOf(lat).subtract(latDelta);
+        BigDecimal latMax = BigDecimal.valueOf(lat).add(latDelta);
+        BigDecimal lngMin = BigDecimal.valueOf(lng).subtract(lngDelta);
+        BigDecimal lngMax = BigDecimal.valueOf(lng).add(lngDelta);
 
         List<NearbySpace> candidates = nearbySpaceRepository.findByLatBetweenAndLngBetween(latMin, latMax, lngMin, lngMax);
 
@@ -298,7 +380,7 @@ public List<Signal> getSignalsBySeeking(String seeking) {
     }
 
     @Transactional
-    public NearbySpace createNearbySpace(NearbySpace nearbySpace) {
+    public NearbySpace createNearbySpace(User user, NearbySpace nearbySpace) {
         if (nearbySpace.getLat() == null || nearbySpace.getLng() == null) {
             throw new IllegalArgumentException("lat and lng are required for nearby spaces");
         }
@@ -361,8 +443,6 @@ public Object updatePost(UUID id, User user, Signal updatedSignal) {
         existing.setLat(updatedSignal.getLat());
         existing.setLng(updatedSignal.getLng());
         existing.setTimelineDays(updatedSignal.getTimelineDays());
-        existing.setCompensation(updatedSignal.getCompensation());
-        existing.setVisibility(updatedSignal.getVisibility());
         existing.setSignalStrength(updatedSignal.getSignalStrength());
 
         return signalRepository.save(existing);
@@ -452,7 +532,7 @@ public List<Signal> getSignalsByUserAndCategory(UUID userId, String category) {
     return signalRepository.findByUserIdAndCategoryIgnoreCase(userId, category);
 }
 
-public List<com.starto.dto.NearbyUserDTO> getNearbyUsers(double lat, double lng, double radiusKm) {
+public List<com.starto.dto.NearbyUserDTO> getNearbyUsers(double lat, double lng, double radiusKm, String role) {
 
     double latDiff = radiusKm / 111.0;
     double lngDiff = radiusKm / (111.0 * Math.cos(Math.toRadians(lat)));
@@ -479,5 +559,32 @@ public List<com.starto.dto.NearbyUserDTO> getNearbyUsers(double lat, double lng,
             u.getLng()
     ))
     .collect(Collectors.toList());
-}
+    }
+
+    public List<String> getAllCities() {
+        return signalRepository.findAll().stream()
+                .map(Signal::getCity)
+                .distinct()
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    public String calculateStrength(double viewerLat, double viewerLng, double signalLat, double signalLng) {
+        double dist = haversineDistanceKm(viewerLat, viewerLng, signalLat, signalLng);
+        if (dist < 10) return "high";
+        if (dist < 50) return "medium";
+        return "low";
+    }
+
+    @Transactional
+    public void syncResponseCounts() {
+        log.info("Performing bulk sync of response counts...");
+        try {
+            signalRepository.syncAllResponseCounts();
+            nearbySpaceRepository.syncAllResponseCounts();
+            log.info("Bulk sync complete.");
+        } catch (Exception e) {
+            log.error("Failed to perform bulk sync", e);
+        }
+    }
 }

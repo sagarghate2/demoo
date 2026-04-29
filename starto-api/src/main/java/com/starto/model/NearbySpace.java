@@ -2,6 +2,7 @@ package com.starto.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.io.Serializable;
@@ -22,9 +23,25 @@ public class NearbySpace implements Serializable{
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne
 @JoinColumn(name = "user_id", nullable = false)
 private User user;
+
+@Column(name = "user_id", insertable = false, updatable = false)
+private UUID userId;
+
+    @org.hibernate.annotations.Formula("(SELECT u.role FROM users u WHERE u.id = user_id)")
+    private String userRole;
+
+    @org.hibernate.annotations.Formula("(SELECT u.avatar_url FROM users u WHERE u.id = user_id)")
+    private String avatarUrl;
+
+    @org.hibernate.annotations.Formula("(SELECT u.username FROM users u WHERE u.id = user_id)")
+    private String username;
+
+    @org.hibernate.annotations.Formula("(SELECT u.name FROM users u WHERE u.id = user_id)")
+    private String userFullName;
 
     @Column(nullable = false)
     private String name;
@@ -54,6 +71,18 @@ private User user;
     private String website;
     @Builder.Default
     private Boolean verified = false;
+
+    @Column(name = "response_count")
+    @Builder.Default
+    private Integer responseCount = 0;
+
+    @Column(name = "offer_count")
+    @Builder.Default
+    private Integer offerCount = 0;
+
+    @Column(name = "view_count")
+    @Builder.Default
+    private Integer viewCount = 0;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

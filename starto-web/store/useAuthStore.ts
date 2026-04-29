@@ -27,6 +27,7 @@ export interface UserProfile {
     lng: number | null;
     signalCount: number;
     networkSize: number;
+    planExpiresAt?: string | null;
 }
 
 interface AuthState {
@@ -39,6 +40,7 @@ interface AuthState {
     setAuth: (firebaseUser: FirebaseUser, token: string, user: UserProfile) => void;
     clearAuth: () => void;
     setLoading: (isLoading: boolean) => void;
+    setInitialized: (isInitialized: boolean) => void;
     updateUser: (updates: Partial<UserProfile>) => void;
 }
 
@@ -50,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             isAuthenticated: false,
             isLoading: true,
+            isInitialized: false,
 
             setAuth: (firebaseUser, token, user) => set({
                 firebaseUser,
@@ -68,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
             }),
 
             setLoading: (isLoading) => set({ isLoading }),
+            setInitialized: (isInitialized) => set({ isInitialized }),
             
             updateUser: (updates) => set((state) => ({
                 user: state.user ? { ...state.user, ...updates } : null

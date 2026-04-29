@@ -164,7 +164,7 @@ jobs:
           antigravity deploy \
             --name starto-backend \
             --image ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest \
-            --port 8080 \
+            --port 9090 \
             --env DB_URL="${{ secrets.DB_URL }}" \
             --env DB_USERNAME="${{ secrets.DB_USERNAME }}" \
             --env DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
@@ -191,7 +191,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo "✅ Deployed starto-backend → port 8080"
+          echo "✅ Deployed starto-backend → port 9090"
           echo "✅ Deployed starto-frontend → port 3000"
           antigravity status starto-backend
           antigravity status starto-frontend

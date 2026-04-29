@@ -15,7 +15,8 @@ import {
     Loader2,
     Calendar,
     ChevronRight,
-    Search
+    Search,
+    Building
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -23,11 +24,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from '@/components/feed/Sidebar'
 import MobileBottomNav from '@/components/feed/MobileBottomNav'
 import VerifiedAvatar from '@/components/feed/VerifiedAvatar'
-import { signalsApi, ApiSignal, usersApi, ApiUser } from '@/lib/apiClient'
+import { signalsApi, ApiSignal, usersApi, ApiUser, commentsApi, ApiComment } from '@/lib/apiClient'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSignalStore, getSignalExpiration } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { useResponseStore } from '@/store/useResponseStore'
+import { CommentThread, Comment } from '@/components/feed/CommentSystem'
+import Toast from '@/components/feed/Toast'
+import StatusModal from '@/components/feed/StatusModal'
 
 // Reuse the map function to convert ApiSignal to card-like shape if needed, 
 // but here we want the raw data for maximum detail.
@@ -37,7 +41,7 @@ export default function SignalDetailPage() {
     const router = useRouter()
     const { user: currentUser } = useAuthStore()
     const { signals: localSignals, addComment, addReply } = useSignalStore()
-    const { sentRequests, pendingRequests, sendRequest, fetchRequests } = useNetworkStore()
+    const { connections, sentRequests, pendingRequests, sendRequest, fetchRequests } = useNetworkStore()
     const { addResponse, hasResponded } = useResponseStore()
 
     const [signal, setSignal] = useState<ApiSignal | null>(null)
@@ -47,6 +51,46 @@ export default function SignalDetailPage() {
     const [commentText, setCommentText] = useState('')
     const [replyToId, setReplyToId] = useState<string | null>(null)
     const [replyText, setReplyText] = useState('')
+    const [comments, setComments] = useState<Comment[]>([])
+    const [isLoadingComments, setIsLoadingComments] = useState(false)
+    const [visibleCount, setVisibleCount] = useState(2)
+    const [toast, setToast] = useState<{isVisible: boolean, message: string, type: 'success' | 'error' | 'info'}>({
+        isVisible: false,
+        message: '',
+        type: 'success'
+    })
+    const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: ''
+    })
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToast({ isVisible: true, message, type })
+    }
+
+    const fetchComments = () => {
+        if (!id) return;
+        setIsLoadingComments(true);
+        commentsApi.getForSignal(id as string).then(({ data: commentData, error: commentError }) => {
+            if (!commentError && commentData) {
+                const mapRecursive = (c: any): Comment => ({
+                    id: c.id,
+                    username: c.username,
+                    userId: c.userId,
+                    text: c.content,
+                    avatarUrl: c.avatarUrl,
+                    timestamp: new Date(c.createdAt).getTime(),
+                    replies: (c.replies || []).map(mapRecursive)
+                });
+                const mappedComments: Comment[] = commentData.map(mapRecursive);
+                setComments(mappedComments);
+                setSignal(prev => prev ? ({ ...prev, responseCount: mappedComments.length }) : null);
+            }
+            setIsLoadingComments(false);
+        });
+    }
 
     useEffect(() => {
         if (!id) return
@@ -89,10 +133,13 @@ export default function SignalDetailPage() {
                         setOwner(userData)
                     })
                 }
+                
+                fetchComments();
+                fetchRequests(); // Sync network state
                 setLoading(false)
             }
         })
-    }, [id, localSignals])
+    }, [id, localSignals, fetchRequests])
 
     if (loading) {
         return (
@@ -123,9 +170,11 @@ export default function SignalDetailPage() {
     }
 
     const isOwner = currentUser?.username === signal.username
-    const alreadyConnected = sentRequests.some(r => r.username === signal.username && r.status === 'accepted') || 
-                             pendingRequests.some(r => r.username === signal.username && r.status === 'accepted')
-    const alreadyPending = sentRequests.some(r => r.username === signal.username && r.status === 'pending')
+    const alreadyConnected = (sentRequests || []).some(r => (r.receiverUsername === signal.username || r.requesterUsername === signal.username) && r.status === 'ACCEPTED') || 
+                             (pendingRequests || []).some(r => (r.receiverUsername === signal.username || r.requesterUsername === signal.username) && r.status === 'ACCEPTED') ||
+                             (connections || []).some(c => c.receiverUsername === signal.username || c.requesterUsername === signal.username)
+                             
+    const alreadyPending = (sentRequests || []).some(r => r.receiverUsername === signal.username && r.status === 'PENDING')
     const alreadyResponded = hasResponded(signal.id)
 
     // Calculate time details
@@ -148,7 +197,15 @@ export default function SignalDetailPage() {
                             <span className="text-sm font-medium uppercase tracking-widest">Back</span>
                         </button>
                         <div className="flex gap-3">
-                            <button className="p-2 hover:bg-surface-2 rounded-full transition-colors">
+                            <button 
+                                onClick={() => {
+                                    const url = window.location.href;
+                                    navigator.clipboard.writeText(url);
+                                    showToast('Link copied to clipboard!');
+                                }}
+                                className="p-2 hover:bg-surface-2 rounded-full transition-colors"
+                                title="Share Signal"
+                            >
                                 <Share2 className="w-4 h-4 text-text-muted" />
                             </button>
                         </div>
@@ -161,10 +218,15 @@ export default function SignalDetailPage() {
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-primary text-white px-2 py-0.5 rounded-full">
-                                        {signal.category || 'General'}
+                                        {signal.type === 'SPACE' ? (signal.spaceType || 'Ecosystem Node') : (signal.category || 'General')}
                                     </span>
+                                    {signal.stage && (
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-surface-2 border border-border text-text-secondary px-2 py-0.5 rounded-full">
+                                            {signal.stage}
+                                        </span>
+                                    )}
                                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted border border-border px-2 py-0.5 rounded-full">
-                                        {signal.type === 'need' ? '🚨 Looking for' : '💡 Offering'}
+                                        {signal.type === 'SPACE' ? '🏢 Collaboration Space' : (signal.type === 'need' ? '🚨 Looking for' : '💡 Offering')}
                                     </span>
                                 </div>
                                 <h1 className="text-4xl font-display leading-tight mb-4">{signal.title}</h1>
@@ -179,11 +241,18 @@ export default function SignalDetailPage() {
                                             {isExpired ? 'Expired' : (daysLeft > 0 ? `${daysLeft} days left` : `${hoursLeft} hours left`)}
                                         </span>
                                     </div>
+                                    {signal.city && (
+                                        <div className="flex items-center gap-1.5 font-medium">
+                                            <MapPin className="w-4 h-4 text-primary" />
+                                            <span>{signal.city}{signal.state ? `, ${signal.state}` : ''}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Urgency Progress Bar */}
-                            <div className="p-6 bg-surface-2 rounded-2xl border border-border/50">
+                            {/* Urgency Progress Bar - Only for Signals */}
+                            {signal.type !== 'SPACE' && (
+                                <div className="p-6 bg-surface-2 rounded-2xl border border-border/50">
                                 <div className="flex justify-between items-end mb-4">
                                     <div className="space-y-1">
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Ecosystem Urgency</p>
@@ -205,6 +274,7 @@ export default function SignalDetailPage() {
                                     />
                                 </div>
                             </div>
+                            )}
 
                             {/* Description Section */}
                             <div className="space-y-4">
@@ -214,6 +284,15 @@ export default function SignalDetailPage() {
                                         {signal.description}
                                     </p>
                                 </div>
+                                {signal.address && (
+                                    <div className="flex items-start gap-3 p-4 bg-surface-1 rounded-xl border border-border/40 mt-4">
+                                        <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Specific Location</p>
+                                            <p className="text-sm font-medium text-black">{signal.address}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Stats & Metadata */}
@@ -237,15 +316,20 @@ export default function SignalDetailPage() {
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-xl font-display">Discussion</h2>
                                     <span className="text-xs font-bold text-text-muted uppercase tracking-widest">
-                                        {signal.responseCount || 0} Respondents
+                                        {comments.length} Respondents
                                     </span>
                                 </div>
 
                                 {/* Main Reply Box */}
                                 <div className="flex gap-4 bg-surface-2 p-4 rounded-2xl border border-border/30 focus-within:border-primary/30 transition-all">
-                                    <div className="w-10 h-10 rounded-full bg-white border border-border shrink-0 overflow-hidden relative">
-                                        <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser?.username || 'anon')}`} fill alt="me" unoptimized />
-                                    </div>
+                                    <VerifiedAvatar
+                                        username={currentUser?.username || 'anon'}
+                                        avatarUrl={currentUser?.avatarUrl}
+                                        plan={currentUser?.plan}
+                                        size="w-10 h-10"
+                                        badgeSize="w-3 h-3"
+                                        className="shrink-0"
+                                    />
                                     <div className="flex-1 space-y-3">
                                         <textarea 
                                             placeholder="Can you help with this? Add your response..."
@@ -253,14 +337,53 @@ export default function SignalDetailPage() {
                                             value={commentText}
                                             onChange={(e) => setCommentText(e.target.value)}
                                         />
+                                        {/* Instagram Style Emojis */}
+                                        <div className="flex gap-4 mb-2 overflow-x-auto no-scrollbar">
+                                            {['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'].map(emoji => (
+                                                <button
+                                                    key={emoji}
+                                                    onClick={() => setCommentText(prev => prev + emoji)}
+                                                    className="text-xl hover:scale-125 transition-transform"
+                                                >
+                                                    {emoji}
+                                                </button>
+                                            ))}
+                                        </div>
                                         <div className="flex justify-end">
                                             <button 
                                                 disabled={!commentText.trim()}
-                                                onClick={() => {
-                                                    addComment(signal.id, commentText.trim(), currentUser?.username || 'anonymous')
+                                                onClick={async () => {
+                                                    const text = commentText.trim();
                                                     setCommentText('')
-                                                    if (!alreadyResponded && !isOwner) {
-                                                        addResponse({ signalId: signal.id, signalTitle: signal.title, signalUsername: signal.username, signalCategory: signal.category })
+                                                    
+                                                    const { data, error } = await commentsApi.post(signal.id, text);
+                                                    if (!error && data) {
+                                                        const newComment: Comment = {
+                                                            id: data.id,
+                                                            username: data.username,
+                                                            userId: data.userId,
+                                                            text: data.content,
+                                                            timestamp: new Date(data.createdAt).getTime(),
+                                                            avatarUrl: data.avatarUrl || currentUser?.avatarUrl,
+                                                            replies: []
+                                                        };
+                                                        setComments(prev => [newComment, ...prev]);
+                                                        setSignal(prev => prev ? ({ ...prev, responseCount: (prev.responseCount || 0) + 1 }) : null);
+                                                        
+                                                        // Also update local store if it was a local signal
+                                                        addComment(signal.id, text, currentUser?.username || 'anonymous')
+                                                        
+                                                        if (!alreadyResponded && !isOwner) {
+                                                            addResponse({ signalId: signal.id, signalTitle: signal.title, signalUsername: signal.username, signalCategory: signal.category })
+                                                        }
+                                                    } else {
+                                                        setStatusModal({
+                                                            isOpen: true,
+                                                            type: 'error',
+                                                            title: 'Post Failed',
+                                                            message: error || 'Failed to post response. Please try again.'
+                                                        })
+                                                        setCommentText(text); // Restore text on error
                                                     }
                                                 }}
                                                 className="bg-black text-white px-6 py-2 rounded-full text-xs font-bold hover:bg-primary transition-all disabled:opacity-40"
@@ -271,28 +394,51 @@ export default function SignalDetailPage() {
                                     </div>
                                 </div>
 
-                                {/* Comments Display (Mocked/Static for now, using the local signal storage structure) */}
-                                <div className="space-y-6 pl-4">
-                                    {((signal as any).comments || []).length === 0 ? (
+                                {/* Comments Display */}
+                                <div className="space-y-6">
+                                    {isLoadingComments ? (
+                                        <div className="flex justify-center py-8">
+                                            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                                        </div>
+                                    ) : comments.length === 0 ? (
                                         <div className="text-center py-12 text-text-muted space-y-2">
                                             <MessageSquare className="w-8 h-8 mx-auto opacity-20" />
                                             <p className="text-sm">No discussion yet. Be the first to spark engagement!</p>
                                         </div>
                                     ) : (
-                                        (signal as any).comments.map((comment: any) => (
-                                            <div key={comment.id} className="flex gap-4 group">
-                                                <div className="w-8 h-8 rounded-full bg-surface-2 border border-border shrink-0 overflow-hidden relative">
-                                                    <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(comment.username)}`} fill alt={comment.username} unoptimized />
+                                        <div className="space-y-6">
+                                            {comments.slice(0, visibleCount).map((comment: any) => (
+                                                <div key={comment.id} className="border-b border-border/40 pb-6 last:border-0">
+                                                    <CommentThread
+                                                        comment={comment}
+                                                        signalId={id as string}
+                                                        currentUser={currentUser?.username}
+                                                        currentUserId={currentUser?.id}
+                                                        isSignalOwner={isOwner}
+                                                        onReplySuccess={fetchComments}
+                                                        onDeleteSuccess={(deletedId) => {
+                                                            const removeRecursive = (list: Comment[]): Comment[] => {
+                                                                return list.filter(c => c.id !== deletedId).map(c => ({
+                                                                    ...c,
+                                                                    replies: removeRecursive(c.replies)
+                                                                }));
+                                                            };
+                                                            setComments(prev => removeRecursive(prev));
+                                                            setSignal(prev => prev ? ({ ...prev, responseCount: Math.max(0, (prev.responseCount || 0) - 1) }) : null);
+                                                        }}
+                                                    />
                                                 </div>
-                                                <div className="flex-1 space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-sm">@{comment.username}</span>
-                                                        <span className="text-[10px] text-text-muted">{new Date(comment.timestamp).toLocaleDateString()}</span>
-                                                    </div>
-                                                    <p className="text-sm text-text-secondary leading-relaxed">{comment.text}</p>
-                                                </div>
-                                            </div>
-                                        ))
+                                            ))}
+
+                                            {comments.length > visibleCount && (
+                                                <button 
+                                                    onClick={() => setVisibleCount(prev => prev + 10)}
+                                                    className="w-full py-4 text-sm font-bold text-primary hover:bg-surface-2 border border-dashed border-border rounded-xl transition-all uppercase tracking-widest mt-4"
+                                                >
+                                                    Show more comments ({comments.length - visibleCount} hidden)
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -323,7 +469,7 @@ export default function SignalDetailPage() {
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-xs text-text-secondary">
                                                 <MapPin className="w-3.5 h-3.5" />
-                                                <span>{owner.city || 'India'}, {owner.state || 'Ecosystem'}</span>
+                                                <span>{signal.address || signal.city || owner.city || 'India'}</span>
                                             </div>
                                             <div className="flex items-center gap-2 text-xs text-text-secondary">
                                                 <Zap className="w-3.5 h-3.5" />
@@ -344,8 +490,17 @@ export default function SignalDetailPage() {
                                                 onClick={async () => {
                                                     if (!alreadyConnected && !alreadyPending) {
                                                         try {
-                                                            await sendRequest(signal.id, 'I want to connect!');
-                                                        } catch (err) { /* handled */ }
+                                                            await sendRequest(signal.type === 'SPACE' ? null : signal.id, 'I want to connect!', '', signal.type === 'SPACE' ? signal.id : null);
+                                                            showToast('Connection request sent!', 'success');
+                                                        } catch (err: any) {
+                                                            showToast(err.message || 'Failed to send request', 'error');
+                                                        }
+                                                    } else {
+                                                        if (alreadyConnected) {
+                                                            showToast('You are already connected with this user', 'info');
+                                                        } else {
+                                                            showToast('Connection request is already pending', 'info');
+                                                        }
                                                     }
                                                 }}
                                                 className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
@@ -359,7 +514,7 @@ export default function SignalDetailPage() {
                                                 {alreadyConnected ? (
                                                     <><CheckCheck className="w-4 h-4" /> Connected</>
                                                 ) : alreadyPending ? (
-                                                    'Pending Request'
+                                                    <><Clock className="w-4 h-4" /> Pending Request</>
                                                 ) : (
                                                     <><UserPlus className="w-4 h-4" /> Connect with {owner?.name?.split(' ')[0] || 'User'}</>
                                                 )}
@@ -383,6 +538,21 @@ export default function SignalDetailPage() {
                 </main>
                 <MobileBottomNav />
             </div>
+            
+            <Toast 
+                isVisible={toast.isVisible}
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
+            />
+
+            <StatusModal 
+                isOpen={statusModal.isOpen}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+                onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
+            />
         </div>
     )
 }

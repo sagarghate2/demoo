@@ -1,7 +1,7 @@
 "use client"
 
 import Sidebar from '@/components/feed/Sidebar'
-import { MapPin, Globe, Twitter, Linkedin, Github, Zap, Users, BadgeCheck, Star } from 'lucide-react'
+import { MapPin, Globe, Twitter, Linkedin, Github, Zap, Users, BadgeCheck, Star, CheckCheck, Building } from 'lucide-react'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -9,8 +9,11 @@ import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { useRatingStore } from '@/store/useRatingStore'
 import Link from 'next/link'
-import { usersApi } from '@/lib/apiClient'
+import { usersApi, connectionsApi, signalsApi, ApiUser, ApiSignal } from '@/lib/apiClient'
 import { motion } from 'framer-motion'
+import StatusModal from '@/components/feed/StatusModal'
+import VerifiedAvatar from '@/components/feed/VerifiedAvatar'
+import NetworkModal from '@/components/feed/NetworkModal'
 
 export default function PublicProfile({ params }: { params: { username: string } }) {
     const { username: paramUsername } = params
@@ -22,40 +25,86 @@ export default function PublicProfile({ params }: { params: { username: string }
 
     const extractHandle = (url: string | null | undefined, prefix = '@') => {
         if (!url) return ''
-        const parts = url.split('/').filter(Boolean)
-        const lastPart = parts[parts.length - 1] || ''
+        // Strip query parameters
+        const cleanUrl = url.split('?')[0]
+        // Get last segment of path
+        const parts = cleanUrl.split('/').filter(Boolean)
+        if (parts.length === 0) return ''
+        
+        const lastPart = parts[parts.length - 1]
+        // If it's a domain name (e.g. user just pasted linkedin.com), return empty or the domain
+        if (lastPart.includes('.')) return ''
+        
         return lastPart.startsWith('@') ? lastPart : `${prefix}${lastPart}`
     }
 
-    const { user: currentUser, isAuthenticated } = useAuthStore()
+    const { user: currentUser, isAuthenticated, isInitialized } = useAuthStore()
     const storeUsername = currentUser?.username || ''
     
     const [fetchedUser, setFetchedUser] = useState<any | null>(null)
     const [isLoadingUser, setIsLoadingUser] = useState(true)
+    const [fetchedSignals, setFetchedSignals] = useState<ApiSignal[]>([])
 
     const { signals } = useSignalStore()
     const { connections, sentRequests, sendRequest, fetchRequests } = useNetworkStore()
-    const { addRating, getAverageRating, getRatingsFor, hasRated } = useRatingStore()
+    const { addRating, fetchRatingsFor, fetchSummary, ratings: allRatings, summary, isLoading: isRatingLoading } = useRatingStore()
+    const alreadyRated = isAuthenticated && allRatings.some(r => r.reviewerUsername === storeUsername)
 
     const [isMounted, setIsMounted] = useState(false)
     const [showAllSignals, setShowAllSignals] = useState(false)
     const [requestJustSent, setRequestJustSent] = useState(false)
+    const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: ''
+    })
+    const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false)
+    const [userConnections, setUserConnections] = useState<any[]>([])
+    const closeStatusModal = () => setStatusModal(prev => ({ ...prev, isOpen: false }))
     
     useEffect(() => {
         setIsMounted(true)
         setIsLoadingUser(true)
+
+        // Ensure network data is loaded for accurate connection status
+        if (isInitialized && isAuthenticated) {
+            fetchRequests();
+        }
+
         usersApi.getByUsername(paramUsername).then(({ data, error }) => {
             if (data) {
                 setFetchedUser(data)
+                // Fetch ratings and summary from backend
+                if (data.id) {
+                    fetchRatingsFor(data.id);
+                    fetchSummary(data.id);
+                }
+                
+                // Use ID if available, otherwise username
+                const signalIdentifier = data.id || data.username;
+                signalsApi.getAll({ username: signalIdentifier }).then(sigRes => {
+                    if (sigRes.data) {
+                        setFetchedSignals(sigRes.data)
+                    }
+                })
+
+                // Fetch connections for this user to allow viewing network
+                if (data.id) {
+                    connectionsApi.getAcceptedForUser(data.id).then(({ data: connData }) => {
+                        if (connData) setUserConnections(connData);
+                    });
+                }
             }
             setIsLoadingUser(false)
         })
-    }, [paramUsername])
+    }, [paramUsername, isAuthenticated, isInitialized, fetchRatingsFor, fetchSummary])
 
     const isOwnProfile = isAuthenticated && paramUsername === storeUsername
     
     // Use fetched data if available, fallback to store if own profile, else defaults
     const activeUser = isOwnProfile ? currentUser : fetchedUser
+    const effectiveUsername = activeUser?.username || paramUsername;
     
     const {
         isVerified = false, 
@@ -71,9 +120,10 @@ export default function PublicProfile({ params }: { params: { username: string }
         avatarUrl = null
     } = (activeUser as any) || {}
 
-    const userSignals = signals.filter(s => s.username === paramUsername)
+    const profileSignals = isOwnProfile ? signals.filter(s => s.username === effectiveUsername || s.userId === effectiveUsername) : fetchedSignals;
+    const userSignals = profileSignals;
 
-    const displayName = name || paramUsername.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const displayName = name || (effectiveUsername.length > 20 ? 'Starto Member' : effectiveUsername.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
     const displayRole = role || 'Member'
     const displayCity = city || 'India'
     const displayBio = bio || `Active member of the Starto ecosystem. Raising signals in the ${displayRole} space.`
@@ -82,13 +132,12 @@ export default function PublicProfile({ params }: { params: { username: string }
     const displayLinkedin = linkedinUrl
     const displayTwitter = twitterUrl
     const displayGithub = githubUrl
+    const displaySubscription = (activeUser as any)?.plan || (activeUser as any)?.subscription || 'Member'
     const displayVerified = isVerified
-    const displaySubscription = subscription === 'pro' ? 'Pro' : 'Free'
 
     // Rating data
-    const avgRating = getAverageRating(paramUsername)
-    const allRatings = getRatingsFor(paramUsername)
-    const alreadyRated = hasRated(storeUsername, paramUsername)
+    const avgRating = summary?.averageRating || 0
+    // const allRatings is now from store
     const [hoverStar, setHoverStar] = useState(0)
     const [selectedStar, setSelectedStar] = useState(0)
     const [ratingComment, setRatingComment] = useState('')
@@ -97,18 +146,23 @@ export default function PublicProfile({ params }: { params: { username: string }
     // Rating distribution (Play Store style)
     const ratingDistribution = [5, 4, 3, 2, 1].map(star => ({
         star,
-        count: allRatings.filter(r => r.stars === star).length,
-        pct: allRatings.length > 0 ? Math.round((allRatings.filter(r => r.stars === star).length / allRatings.length) * 100) : 0
+        count: allRatings.filter(r => r.rating === star).length,
+        pct: allRatings.length > 0 ? Math.round((allRatings.filter(r => r.rating === star).length / allRatings.length) * 100) : 0
     }))
 
-    const handleSubmitRating = () => {
-        if (!selectedStar || isOwnProfile || alreadyRated) return
-        addRating({ fromUsername: storeUsername, toUsername: paramUsername, stars: selectedStar, comment: ratingComment })
-        setRatingSubmitted(true)
+    const handleSubmitRating = async () => {
+        if (!selectedStar || isOwnProfile || alreadyRated || !fetchedUser?.id) return
+        try {
+            await addRating(fetchedUser.id, selectedStar, ratingComment)
+            setRatingSubmitted(true)
+        } catch (err) {
+            console.error('Failed to submit rating:', err)
+        }
     }
 
     // Connections count for this user (only shown publicly if it's own profile)
-    const connectionsCount = isMounted && (isOwnProfile ? (connections?.length || 0) : (Array.isArray(connections) ? connections.filter(c => c.username === paramUsername).length : 0))
+    const signalsCount = isMounted ? userSignals.length : 0
+    const connectionsCount = isMounted ? (isOwnProfile ? (connections?.length || 0) : (userConnections.length || activeUser?.networkSize || 0)) : 0
 
     return (
         <div className="min-h-screen bg-background flex justify-center">
@@ -118,22 +172,28 @@ export default function PublicProfile({ params }: { params: { username: string }
                 <main className="flex-1 max-w-[680px] border-r border-border min-h-screen p-0">
                     {/* Profile Header (No Banner) */}
                     <div className="pt-8 px-8 flex items-end gap-6 border-b border-border pb-8 bg-surface-1">
-                        <div className="w-32 h-32 bg-white rounded-3xl p-1.5 border-4 border-background shadow-2xl relative overflow-hidden shrink-0">
-                            {displayAvatarUrl ? (
-                                <Image src={displayAvatarUrl} alt="Profile" fill className="object-cover rounded-2xl" unoptimized />
-                            ) : (
-                                <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(paramUsername)}`} alt={displayName} fill className="object-cover rounded-2xl" unoptimized />
-                            )}
+                        <div className="w-32 h-32 bg-white rounded-3xl p-1 border-4 border-background shadow-2xl relative shrink-0">
+                            <VerifiedAvatar
+                                username={effectiveUsername}
+                                avatarUrl={displayAvatarUrl}
+                                plan={displaySubscription}
+                                size="w-full h-full"
+                                badgeSize="w-8 h-8"
+                                className="rounded-2xl overflow-hidden"
+                            />
                         </div>
                         
                         <div className="flex-1 pb-2">
-                            <div className="flex items-center gap-2 mb-1">
-                                <h1 className="text-3xl font-display text-black">{displayName}</h1>
-                                {(displayVerified || displaySubscription === 'Pro' || displaySubscription === 'Founder') && (
-                                    <span title={`${displaySubscription} Verified`} className="relative inline-flex items-center justify-center">
-                                        <BadgeCheck className="w-7 h-7 fill-black text-white" />
-                                    </span>
-                                )}
+                            <div className="flex flex-col mb-1">
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-3xl font-display font-bold text-black">{displayName}</h1>
+                                    {(displayVerified || displaySubscription === 'Pro' || displaySubscription === 'Founder') && (
+                                        <span title={`${displaySubscription} Verified`} className="relative inline-flex items-center justify-center">
+                                            <BadgeCheck className="w-6 h-6 fill-black text-white" />
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm font-medium text-gray-500">@{effectiveUsername}</p>
                             </div>
                             <p className="text-text-secondary font-medium flex items-center gap-2">
                                 {displayRole} • {displayCity.split(',')[0]}
@@ -141,31 +201,101 @@ export default function PublicProfile({ params }: { params: { username: string }
                                 <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border text-black">
                                     {displaySubscription} Account
                                 </span>
+                                {isOwnProfile && activeUser?.planExpiresAt && (
+                                    <span className="text-[9px] text-text-muted font-medium ml-1">
+                                        Expires: {(() => {
+                                            const val = typeof activeUser.planExpiresAt === 'number' ? activeUser.planExpiresAt : new Date(activeUser.planExpiresAt).getTime();
+                                            if (isNaN(val)) return '';
+                                            const ms = val < 10000000000 ? val * 1000 : val;
+                                            return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                                        })()}
+                                    </span>
+                                )}
                             </p>
                         </div>
 
                         {!isOwnProfile && (() => {
-                            const isPending = isMounted && Array.isArray(sentRequests) && sentRequests.some(r => r.username === paramUsername && r.status === 'pending');
+                            const isPending = isMounted && Array.isArray(sentRequests) && sentRequests.some(r => (r.receiverUsername === paramUsername || r.requesterUsername === paramUsername) && r.status === 'PENDING');
+                            const alreadyConnected = isMounted && Array.isArray(connections) && connections.some(c => c.requesterUsername === paramUsername || c.receiverUsername === paramUsername);
+                            
+                            if (alreadyConnected) {
+                                return (
+                                    <div className="pb-2 flex gap-2">
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    const conn = connections.find(c => c.requesterUsername === paramUsername || c.receiverUsername === paramUsername);
+                                                    if (!conn) return;
+                                                    const { data, error } = await connectionsApi.getWhatsappLink(conn.id);
+                                                    if (data?.whatsappUrl) {
+                                                        window.open(data.whatsappUrl, '_blank');
+                                                    } else if (error) {
+                                                        setStatusModal({
+                                                            isOpen: true,
+                                                            type: 'upgrade',
+                                                            title: 'Upgrade Required',
+                                                            message: error || 'Upgrade your plan to unlock WhatsApp contact'
+                                                        });
+                                                    }
+                                                } catch (err: any) {
+                                                    setStatusModal({
+                                                        isOpen: true,
+                                                        type: 'upgrade',
+                                                        title: 'Upgrade Required',
+                                                        message: err.message || 'Upgrade your plan to unlock WhatsApp contact'
+                                                    });
+                                                }
+                                            }}
+                                            className="px-6 py-2.5 bg-accent-green text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-accent-green/20"
+                                        >
+                                            <Zap className="w-4 h-4 fill-white" /> WhatsApp
+                                        </button>
+                                        <div className="px-6 py-2.5 bg-surface-2 text-accent-green border border-accent-green/20 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center gap-2">
+                                            <CheckCheck className="w-4 h-4" /> Connected
+                                        </div>
+                                    </div>
+                                );
+                            }
+
                             return (
                                 <div className="pb-2">
                                     <button 
-                                        disabled={!isMounted || isPending || userSignals.length === 0}
                                         onClick={async () => {
-                                            if (userSignals.length === 0) {
-                                                alert('This user has no active signals to connect to.');
+                                            if (isPending || requestJustSent) {
+                                                setStatusModal({
+                                                    isOpen: true,
+                                                    type: 'duplicate',
+                                                    title: 'Request Pending',
+                                                    message: 'A connection request is already pending with this person.'
+                                                });
                                                 return;
                                             }
                                             try {
-                                                await sendRequest(userSignals[0].id, 'Hi, I saw your profile and wanted to connect!', paramUsername);
+                                                await sendRequest(null, 'I want to connect!', fetchedUser?.id);
                                                 setRequestJustSent(true);
-                                                // Animation state handles rendering "Sending..." then relies on isPending returning true
-                                            } catch (err) {
-                                                alert('Failed to send request.');
+                                            } catch (err: any) {
+                                                if (err.message?.includes('already connected') || err.message === 'Request already exists') {
+                                                    setRequestJustSent(true);
+                                                    setStatusModal({
+                                                        isOpen: true,
+                                                        type: 'duplicate',
+                                                        title: 'Already Connected',
+                                                        message: 'You are already connected or have a pending request with this person.'
+                                                    });
+                                                } else {
+                                                    setStatusModal({
+                                                        isOpen: true,
+                                                        type: 'error',
+                                                        title: 'Request Failed',
+                                                        message: err.message || 'Failed to send request'
+                                                    });
+                                                }
                                             }
                                         }}
                                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
                                             requestJustSent || isPending ? 'bg-green-500 text-white' : 'bg-black text-white hover:bg-black/80'
                                         }`}
+                                        disabled={isPending || requestJustSent || alreadyConnected}
                                     >
                                         {requestJustSent ? (
                                             <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2">
@@ -195,12 +325,36 @@ export default function PublicProfile({ params }: { params: { username: string }
                                         <MapPin className="w-3.5 h-3.5" /> {displayCity.split(',')[0]}
                                     </span>
                                     {displayWebsite && (
-                                        <Link href={formatURL(displayWebsite)} target="_blank" className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                                        <Link href={formatURL(displayWebsite)} target="_blank" className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors">
                                             <Globe className="w-3.5 h-3.5" /> {displayWebsite.replace(/^https?:\/\//, '')}
+                                        </Link>
+                                    )}
+                                    {fetchedUser?.linkedinUrl && (
+                                        <Link href={formatURL(fetchedUser.linkedinUrl)} target="_blank" className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-[#0077b5] transition-colors">
+                                            <Linkedin className="w-3.5 h-3.5" /> LinkedIn
+                                        </Link>
+                                    )}
+                                    {fetchedUser?.twitterUrl && (
+                                        <Link href={formatURL(fetchedUser.twitterUrl)} target="_blank" className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-[#1DA1F2] transition-colors">
+                                            <Twitter className="w-3.5 h-3.5" /> Twitter
+                                        </Link>
+                                    )}
+                                    {fetchedUser?.githubUrl && (
+                                        <Link href={formatURL(fetchedUser.githubUrl)} target="_blank" className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-[#333] dark:hover:text-white transition-colors">
+                                            <Github className="w-3.5 h-3.5" /> GitHub
                                         </Link>
                                     )}
                                 </div>
                                 <p className="text-sm text-text-secondary leading-relaxed max-w-lg mb-6">{displayBio}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                                <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                                    displaySubscription.toLowerCase() === 'pro' 
+                                        ? 'bg-primary/5 text-primary border-primary/20 shadow-sm shadow-primary/10' 
+                                        : 'bg-surface-2 text-text-muted border-border'
+                                }`}>
+                                    {displaySubscription} Account
+                                </div>
                             </div>
                         </div>
 
@@ -208,11 +362,14 @@ export default function PublicProfile({ params }: { params: { username: string }
                         <div className="flex gap-12 pt-6 mb-8">
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Signals</p>
-                                <p className="text-2xl font-mono font-bold text-black">{userSignals.length}</p>
+                                <p className="text-2xl font-mono font-bold text-black">{signalsCount}</p>
                             </div>
-                            <div>
-                                <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Connections</p>
-                                <p className="text-2xl font-mono font-bold text-black">{isMounted && isOwnProfile ? connections.length : (fetchedUser?.connectionCount || '—')}</p>
+                            <div 
+                                onClick={() => setIsNetworkModalOpen(true)}
+                                className="cursor-pointer group"
+                            >
+                                <p className="text-[10px] uppercase font-bold text-text-muted mb-1 group-hover:text-primary transition-colors">Connections</p>
+                                <p className="text-2xl font-mono font-bold text-black group-hover:text-primary transition-colors">{connectionsCount}</p>
                             </div>
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Rating</p>
@@ -230,19 +387,19 @@ export default function PublicProfile({ params }: { params: { username: string }
                                 {displayLinkedin && (
                                     <Link href={formatURL(displayLinkedin)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-primary transition-all">
                                         <Linkedin className="w-4 h-4 text-black group-hover:text-primary" />
-                                        <span className="text-xs font-bold text-black">{extractHandle(displayLinkedin, '')}</span>
+                                        <span className="text-xs font-bold text-black">LinkedIn</span>
                                     </Link>
                                 )}
                                 {displayTwitter && (
                                     <Link href={formatURL(displayTwitter.startsWith('http') ? displayTwitter : `twitter.com/${displayTwitter.replace('@', '')}`)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-black transition-all">
                                         <Twitter className="w-4 h-4 text-black group-hover:text-black" />
-                                        <span className="text-xs font-bold text-black">{displayTwitter.startsWith('http') ? extractHandle(displayTwitter) : (displayTwitter.startsWith('@') ? displayTwitter : `@${displayTwitter}`)}</span>
+                                        <span className="text-xs font-bold text-black">Twitter</span>
                                     </Link>
                                 )}
                                 {displayGithub && (
                                     <Link href={formatURL(displayGithub)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-black transition-all">
                                         <Github className="w-4 h-4 text-black group-hover:text-black" />
-                                        <span className="text-xs font-bold text-black">{extractHandle(displayGithub, '')}</span>
+                                        <span className="text-xs font-bold text-black">GitHub</span>
                                     </Link>
                                 )}
                             </div>
@@ -255,34 +412,99 @@ export default function PublicProfile({ params }: { params: { username: string }
                             <button className="pb-4 border-b-2 border-primary font-bold text-xs uppercase tracking-widest">Active Signals</button>
                         </div>
                         <div className="space-y-6">
-                            {userSignals.length === 0 ? (
+                            {userSignals.filter(s => s.type !== 'SPACE').length === 0 ? (
                                 <div className="flex flex-col items-center py-12 text-center text-text-muted">
                                     <Users className="w-10 h-10 mb-3 opacity-30" />
                                     <p className="text-sm">No active signals yet</p>
                                 </div>
                             ) : (
                                 <>
-                                    {(showAllSignals ? userSignals : userSignals.slice(0, 3)).map(signal => (
-                                        <div key={signal.id} className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
-                                                <span className="text-[10px] font-bold text-text-muted">{signal.timeAgo}</span>
+                                    {userSignals.filter(s => s.type !== 'SPACE').slice(0, showAllSignals ? undefined : 3).map(signal => (
+                                            <div key={signal.id} className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
+                                                    <span className="text-[10px] font-bold text-text-muted">
+                                                        {signal.timeAgo || (signal.createdAt ? new Date(signal.createdAt).toLocaleDateString() : 'Recent')}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{signal.title}</h3>
+                                                <p className="text-sm text-text-secondary line-clamp-2">{signal.description}</p>
+                                                <div className="mt-4 pt-4 border-t border-border flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Zap className="w-3.5 h-3.5 text-primary" /> 
+                                                        {(signal.stats?.responses ?? (signal as any).responseCount ?? 0)} Responses
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{signal.title}</h3>
-                                            <p className="text-sm text-text-secondary line-clamp-2">{signal.description}</p>
-                                            <div className="mt-4 pt-4 border-t border-border flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                                                <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-primary" /> {signal.stats.responses} Responses</span>
-                                            </div>
-                                        </div>
                                     ))}
-                                    {userSignals.length > 3 && (
+                                    {userSignals.filter(s => s.type !== 'SPACE').length > 3 && (
                                         <button
                                             onClick={() => setShowAllSignals(!showAllSignals)}
                                             className="w-full py-3 rounded-xl border border-border text-sm font-bold hover:bg-surface-2 transition-all mt-2 text-black"
                                         >
-                                            {showAllSignals ? 'View Less' : `View All ${userSignals.length} Signals`}
+                                            {showAllSignals ? 'View Less' : `View All ${userSignals.filter(s => s.type !== 'SPACE').length} Signals`}
                                         </button>
                                     )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Spaces Feed */}
+                    <div className="p-8 border-b border-border bg-surface-1/30">
+                        <div className="flex items-center gap-8 border-b border-border mb-8">
+                            <button className="pb-4 border-b-2 border-black font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                                <Building className="w-4 h-4" /> Ecosystem Spaces
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-6">
+                            {userSignals.filter(s => s.type === 'SPACE').length === 0 ? (
+                                <div className="flex flex-col items-center py-12 text-center text-text-muted">
+                                    <Building className="w-10 h-10 mb-3 opacity-30" />
+                                    <p className="text-sm">No community spaces launched yet</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {userSignals.filter(s => s.type === 'SPACE').map(space => (
+                                        <div key={space.id} className="p-6 bg-white rounded-3xl border border-border group hover:border-black transition-all shadow-sm">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <span className="text-[10px] px-3 py-1 bg-surface-2 text-black border border-border rounded-full uppercase font-bold tracking-widest">
+                                                    {(space as any).spaceType || 'Community Hub'}
+                                                </span>
+                                                <div className="flex items-center gap-1.5 text-text-muted">
+                                                    <MapPin className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest">{(space as any).city || 'Ecosystem'}</span>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-xl font-display mb-2 group-hover:text-black transition-colors">{space.title}</h3>
+                                            <p className="text-sm text-text-secondary line-clamp-2 mb-4">{(space as any).description}</p>
+                                            
+                                            {(space as any).address && (
+                                                <div className="flex items-center gap-2 text-xs text-text-muted mb-4 bg-surface-2 p-3 rounded-xl">
+                                                    <MapPin className="w-4 h-4 text-primary" />
+                                                    <span className="truncate">{(space as any).address}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-4 border-t border-border flex justify-between items-center">
+                                                <Link 
+                                                    href={`/signals/${space.id}`}
+                                                    className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary hover:underline"
+                                                >
+                                                    View Hub Details →
+                                                </Link>
+                                                {(space as any).website && (
+                                                    <Link 
+                                                        href={formatURL((space as any).website)}
+                                                        target="_blank"
+                                                        className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted hover:text-black"
+                                                    >
+                                                        Website
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </>
                             )}
                         </div>
@@ -292,7 +514,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                     {!isOwnProfile && (
                         <div className="p-8">
                             <h2 className="font-display text-xl mb-2">Ratings & Feedback</h2>
-                            <p className="text-xs text-text-secondary mb-6">Share your experience with @{paramUsername}</p>
+                            <p className="text-xs text-text-secondary mb-6">Share your experience with @{effectiveUsername}</p>
 
                             {/* Rating Distribution (Play Store style) */}
                             {allRatings.length > 0 && (
@@ -318,6 +540,50 @@ export default function PublicProfile({ params }: { params: { username: string }
                                             </div>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Recent Reviews List */}
+                            {allRatings.length > 0 && (
+                                <div className="mt-8 space-y-6">
+                                    <h3 className="font-display text-lg mb-4">Member Feedback</h3>
+                                    {allRatings.map((rating) => (
+                                        <div key={rating.id} className="p-5 bg-white border border-border rounded-2xl shadow-sm">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <VerifiedAvatar
+                                                        username={rating.reviewerUsername}
+                                                        avatarUrl={rating.reviewerAvatarUrl}
+                                                        size="w-10 h-10"
+                                                        badgeSize="w-3 h-3"
+                                                        className="shrink-0"
+                                                    />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-black">{rating.reviewerName}</p>
+                                                        <p className="text-[10px] text-text-muted">@{rating.reviewerUsername}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <div className="flex gap-0.5">
+                                                        {[1, 2, 3, 4, 5].map((s) => (
+                                                            <Star 
+                                                                key={s} 
+                                                                className={`w-3 h-3 ${s <= rating.rating ? 'fill-yellow-400 text-yellow-400' : 'text-border fill-border'}`} 
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-[9px] text-text-muted mt-1">
+                                                        {new Date(rating.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {rating.comment && (
+                                                <p className="text-sm text-text-secondary leading-relaxed pl-1">
+                                                    {rating.comment}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
@@ -417,6 +683,20 @@ export default function PublicProfile({ params }: { params: { username: string }
                     )}
                 </aside>
             </div>
+            <StatusModal 
+                isOpen={statusModal.isOpen} 
+                onClose={closeStatusModal}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+            />
+
+            <NetworkModal 
+                isOpen={isNetworkModalOpen}
+                onClose={() => setIsNetworkModalOpen(false)}
+                connections={userConnections}
+                currentUserId={fetchedUser?.id}
+            />
         </div>
     )
 }

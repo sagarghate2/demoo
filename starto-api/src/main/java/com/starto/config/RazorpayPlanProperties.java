@@ -20,6 +20,7 @@ public class RazorpayPlanProperties {
 
     @Data
     public static class Plans {
+        private String trial;
         private String sprint;
         private String boost;
         private String pro;

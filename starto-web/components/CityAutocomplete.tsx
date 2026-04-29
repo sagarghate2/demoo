@@ -1,24 +1,50 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, MapPin } from "lucide-react";
+import { Search, MapPin, Loader2, Database } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { signalsApi } from "@/lib/apiClient";
 
 interface CityAutocompleteProps {
-    value: string;
-    onChange: (city: string, lat?: number, lng?: number) => void;
+    value?: string;
+    onChange: (city: string, lat?: number, lng?: number, fullAddress?: string) => void;
+    placeholder?: string;
+    className?: string;
+    inputClassName?: string;
+    useBackendData?: boolean;
 }
 
-export default function CityAutocomplete({ value, onChange }: CityAutocompleteProps) {
+export default function CityAutocomplete({ 
+    value = "", 
+    onChange, 
+    placeholder = "Search city...", 
+    className = "",
+    inputClassName = "",
+    useBackendData = false
+}: CityAutocompleteProps) {
     const [query, setQuery] = useState(value);
     const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [backendCities, setBackendCities] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
-    const [isApiReady, setIsApiReady] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const autocompleteService = useRef<any>(null);
     const placesService = useRef<any>(null);
+    const sessionToken = useRef<any>(null);
+    const [isApiReady, setIsApiReady] = useState(false);
 
-    // Monitor for Google Maps API readiness
+    useEffect(() => {
+        setQuery(value);
+    }, [value]);
+
+    useEffect(() => {
+        if (useBackendData) {
+            signalsApi.getCities().then(({ data }) => {
+                if (data) setBackendCities(data);
+            });
+        }
+    }, [useBackendData]);
+
     useEffect(() => {
         const checkApi = () => {
             if (typeof window !== "undefined" && (window as any).google?.maps?.places) {
@@ -28,21 +54,13 @@ export default function CityAutocomplete({ value, onChange }: CityAutocompletePr
             return false;
         };
 
-        if (checkApi()) return;
-
-        const interval = setInterval(() => {
-            if (checkApi()) clearInterval(interval);
-        }, 500);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    // Sync with parent value
-    useEffect(() => {
-        if (value !== query && (value || query)) {
-            setQuery(value || "");
+        if (!checkApi()) {
+            const timer = setInterval(() => {
+                if (checkApi()) clearInterval(timer);
+            }, 500);
+            return () => clearInterval(timer);
         }
-    }, [value]);
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -54,61 +72,52 @@ export default function CityAutocomplete({ value, onChange }: CityAutocompletePr
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            // Only search if query is 2+ chars and doesn't match current selection
-            if (query && query.length > 1 && query !== value && isOpen && isApiReady) {
-                fetchCities(query);
-            } else {
-                setSuggestions([]);
-            }
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [query, value, isOpen, isApiReady]);
-
-    const fetchCities = (searchQuery: string) => {
-        setLoading(true);
-        if (!autocompleteService.current && typeof window !== "undefined" && (window as any).google?.maps?.places) {
-            autocompleteService.current = new (window as any).google.maps.places.AutocompleteService();
+    const fetchSuggestions = (input: string) => {
+        if (!input) {
+            setSuggestions([]);
+            return;
         }
 
-        if (autocompleteService.current) {
-            console.log(`Searching for cities: ${searchQuery}`);
+        setLoading(true);
+
+        // Fetch Google Suggestions
+        let googlePredictions: any[] = [];
+        if (isApiReady) {
+            if (!autocompleteService.current) {
+                autocompleteService.current = new (window as any).google.maps.places.AutocompleteService();
+                sessionToken.current = new (window as any).google.maps.places.AutocompleteSessionToken();
+            }
+
             autocompleteService.current.getPlacePredictions(
-                { 
-                    input: searchQuery, 
-                    // Relaxed types to ensure results in all regions
-                    types: ['(regions)'] 
+                {
+                    input,
+                    sessionToken: sessionToken.current,
                 },
-                (predictions: any[], status: string) => {
-                    setLoading(false);
-                    console.log(`Autocomplete status for "${searchQuery}":`, status);
-                    
-                    if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && predictions) {
-                        setSuggestions(predictions);
-                    } else {
-                        if (status === "ZERO_RESULTS") {
-                            // Try one more time without type restrictions if zero results
-                            autocompleteService.current.getPlacePredictions(
-                                { input: searchQuery },
-                                (fallbackPredictions: any[], fallbackStatus: string) => {
-                                    if (fallbackStatus === "OK" && fallbackPredictions) {
-                                        setSuggestions(fallbackPredictions);
-                                    } else {
-                                        setSuggestions([]);
-                                    }
-                                }
-                            );
-                        } else {
-                            setSuggestions([]);
-                        }
-                    }
+                (predictions: any[] | null) => {
+                    googlePredictions = (predictions || []).map(p => ({ ...p, isBackend: false }));
+                    combineSuggestions(googlePredictions);
                 }
             );
         } else {
+            combineSuggestions([]);
+        }
+
+        function combineSuggestions(gPreds: any[]) {
+            const bFiltered = backendCities
+                .filter(c => c.toLowerCase().includes(input.toLowerCase()))
+                .map(c => ({
+                    description: c,
+                    place_id: `backend-${c}`,
+                    isBackend: true,
+                    structured_formatting: {
+                        main_text: c,
+                        secondary_text: "Ecosystem Data"
+                    }
+                }));
+
+            setSuggestions([...bFiltered, ...gPreds]);
             setLoading(false);
-            console.warn("AutocompleteService not initialized yet.");
+            setIsOpen(true);
         }
     };
 
@@ -117,20 +126,33 @@ export default function CityAutocomplete({ value, onChange }: CityAutocompletePr
         setQuery(cityName);
         setIsOpen(false);
 
-        // Fetch lat/lng details
-        if (typeof window !== "undefined" && (window as any).google?.maps?.places) {
+        if (item.isBackend) {
+            onChange(cityName);
+            return;
+        }
+
+        if (isApiReady) {
             if (!placesService.current) {
                 const element = document.createElement('div');
                 placesService.current = new (window as any).google.maps.places.PlacesService(element);
             }
 
             placesService.current.getDetails(
-                { placeId: item.place_id, fields: ['geometry'] },
+                { placeId: item.place_id, fields: ['geometry', 'formatted_address', 'address_components'] },
                 (place: any, status: string) => {
                     if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && place.geometry) {
                         const lat = place.geometry.location.lat();
                         const lng = place.geometry.location.lng();
-                        onChange(cityName, lat, lng);
+                        
+                        let actualCity = cityName;
+                        if (place.address_components) {
+                            const cityComp = place.address_components.find((c: any) => c.types.includes('locality') || c.types.includes('administrative_area_level_2') || c.types.includes('administrative_area_level_1'));
+                            if (cityComp) {
+                                actualCity = cityComp.long_name;
+                            }
+                        }
+
+                        onChange(actualCity, lat, lng, place.formatted_address || cityName);
                     } else {
                         onChange(cityName);
                     }
@@ -141,64 +163,64 @@ export default function CityAutocomplete({ value, onChange }: CityAutocompletePr
         }
     };
 
+    useEffect(() => {
+        if (!query) {
+            setSuggestions([]);
+            return;
+        }
+        const timer = setTimeout(() => fetchSuggestions(query), 300);
+        return () => clearTimeout(timer);
+    }, [query]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setQuery(val);
-        setIsOpen(true);
-        // On typing, we only update name, clearing coordinates
+        // Also inform the parent component of the raw text so it doesn't get lost if they don't select a suggestion
         onChange(val);
     };
 
     return (
-        <div ref={wrapperRef} className="relative w-full">
+        <div className={`relative ${className}`} ref={wrapperRef}>
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 opacity-50" />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${loading ? 'text-primary animate-pulse' : 'text-text-muted'}`} />
                 <input
                     type="text"
                     value={query}
                     onChange={handleInputChange}
-                    onFocus={() => setIsOpen(true)}
-                    placeholder="Search for a city..."
-                    autoComplete="off"
-                    required
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3.5 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/50 focus:bg-white/10 transition-all text-sm"
+                    onFocus={() => query.length > 0 && setIsOpen(true)}
+                    placeholder={placeholder}
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border border-border outline-none focus:border-black text-sm shadow-sm transition-all ${inputClassName || 'bg-white text-black'}`}
                 />
+                {loading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                    </div>
+                )}
             </div>
 
-            {isOpen && query && query.length > 2 && (
-                <div className="absolute z-[100] w-full mt-2 bg-[#1A1B1E] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto backdrop-blur-xl">
-                    {loading ? (
-                        <div className="px-5 py-4 text-xs text-gray-500 flex items-center gap-2 animate-pulse">
-                            <div className="w-2 h-2 bg-primary rounded-full" /> Searching places...
-                        </div>
-                    ) : suggestions.length > 0 ? (
-                        <ul className="py-2">
-                            {suggestions.map((item, index) => (
-                                <li
-                                    key={index}
-                                    onClick={() => handleSelect(item)}
-                                    className="px-4 py-3 cursor-pointer hover:bg-white/5 flex items-center gap-4 transition-colors border-b border-white/[0.03] last:border-0 group"
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-primary/20 group-hover:text-primary transition-colors">
-                                        <MapPin className="w-4 h-4 text-gray-500 group-hover:text-primary" />
-                                    </div>
-                                    <div className="flex flex-col flex-1">
-                                        <span className="text-gray-200 text-sm font-medium group-hover:text-white transition-colors">
-                                            {item.structured_formatting?.main_text || item.description}
-                                        </span>
-                                        {item.structured_formatting?.secondary_text && (
-                                            <span className="text-[11px] text-gray-500">{item.structured_formatting.secondary_text}</span>
-                                        )}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="px-5 py-4 text-xs text-gray-500">No matching cities found.</div>
-                    )}
-                </div>
-            )}
+            <AnimatePresence>
+                {isOpen && suggestions.length > 0 && (
+                    <div className="absolute z-[100] mt-2 w-full bg-white border border-border rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                        {suggestions.map((item) => (
+                            <button
+                                key={item.place_id}
+                                onClick={() => handleSelect(item)}
+                                className="w-full text-left px-4 py-3 hover:bg-surface-1 flex items-start gap-3 transition-colors border-b border-border/50 last:border-0"
+                            >
+                                {item.isBackend ? (
+                                    <Database className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                                ) : (
+                                    <MapPin className="w-4 h-4 mt-0.5 text-text-muted shrink-0" />
+                                )}
+                                <div>
+                                    <p className="text-sm font-medium text-black">{item.isBackend ? item.structured_formatting.main_text : item.description}</p>
+                                    <p className="text-[10px] text-text-muted">{item.structured_formatting.secondary_text}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
-

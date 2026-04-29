@@ -1,11 +1,11 @@
 "use client"
 
-import { MessageSquare, Zap, UserPlus, MoreHorizontal, Edit3, Trash2, CheckCheck, BarChart2 } from 'lucide-react'
+import { MessageSquare, Zap, UserPlus, MoreHorizontal, Edit3, Trash2, CheckCheck, BarChart2, Building, MapPin, Share2, ExternalLink } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
-import { useSignalStore, Signal, Comment, getSignalExpiration } from '@/store/useSignalStore'
+import { useSignalStore, Signal, getSignalExpiration } from '@/store/useSignalStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { useResponseStore } from '@/store/useResponseStore'
@@ -13,7 +13,10 @@ import RaiseSignalModal from './RaiseSignalModal'
 import InsightsModal from './InsightsModal'
 import HelpModal from './HelpModal'
 import VerifiedAvatar from './VerifiedAvatar'
-import { signalsApi } from '@/lib/apiClient'
+import { signalsApi, commentsApi } from '@/lib/apiClient'
+import StatusModal from './StatusModal'
+import DeleteConfirmModal from './DeleteConfirmModal'
+import { CommentThread, Comment } from './CommentSystem'
 
 // ── @Mention hook — searches all known usernames in the store ────────────────
 function useMentionSuggestions(text: string) {
@@ -28,127 +31,10 @@ function useMentionSuggestions(text: string) {
     return { suggestions, query, atIdx }
 }
 
-// ── Reply Input with @mention ─────────────────────────────────────────────────
-function ReplyInput({ placeholder, onSubmit, onCancel }: {
-    placeholder: string
-    onSubmit: (text: string) => void
-    onCancel: () => void
-}) {
-    const [text, setText] = useState(placeholder.startsWith('Reply') ? '' : '')
-    const [preText] = useState(placeholder.startsWith('@') ? `@${placeholder.split('@')[1]?.split('...')[0]} ` : '')
-    const [value, setValue] = useState(preText)
-    const { suggestions, atIdx } = useMentionSuggestions(value)
-    const inputRef = useRef<HTMLInputElement>(null)
-    useEffect(() => { inputRef.current?.focus() }, [])
-
-    const applyMention = (username: string) => {
-        const before = value.slice(0, atIdx)
-        setValue(`${before}@${username} `)
-        inputRef.current?.focus()
-    }
-
-    const submit = () => {
-        if (!value.trim()) return
-        onSubmit(value.trim())
-        setValue('')
-    }
-
-    return (
-        <div className="mt-2 relative">
-            {suggestions.length > 0 && (
-                <div className="absolute bottom-full mb-1 left-0 bg-white border border-border shadow-lg rounded-xl z-30 w-48 py-1 overflow-hidden">
-                    {suggestions.map(u => (
-                        <button key={u} onMouseDown={(e) => { e.preventDefault(); applyMention(u) }}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-2 flex items-center gap-2">
-                            <span className="font-bold text-black">@{u}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
-            <div className="flex gap-2 items-center">
-                <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder={placeholder}
-                    className="flex-1 bg-surface-2 rounded-full px-3 py-1 text-xs outline-none border border-border focus:border-primary"
-                    value={value}
-                    onChange={e => setValue(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') submit() }}
-                />
-                <button onClick={submit} disabled={!value.trim()} className="text-primary font-bold text-xs disabled:opacity-40">Post</button>
-                <button onClick={onCancel} className="text-text-muted text-xs">Cancel</button>
-            </div>
-        </div>
-    )
-}
-
-// ── Recursive Comment/Reply Row ───────────────────────────────────────────────
-function CommentRow({ comment, signalId, currentUser, depth = 0 }: {
-    comment: Comment; signalId: string; currentUser: string | null | undefined; depth?: number
-}) {
-    const [showReply, setShowReply] = useState(false)
-    const avatarSize = depth === 0 ? 'w-6 h-6' : 'w-5 h-5'
-    const textSize = depth === 0 ? 'text-sm' : 'text-xs'
-
-    const handleReply = (text: string) => {
-        if (!currentUser) return
-        
-        // If replying to a reply, prefix their handle so it's clear who is being addressed
-        const finalString = depth > 0 && !text.startsWith(`@${comment.username}`) 
-            ? `@${comment.username} ${text}` 
-            : text;
-            
-        useSignalStore.getState().addReply(signalId, comment.id, finalString, currentUser)
-        setShowReply(false)
-    }
-
-    return (
-        <div className={`flex gap-2 ${textSize}`}>
-            <div className={`${avatarSize} rounded-full bg-surface-2 overflow-hidden shrink-0 mt-0.5 relative`}>
-                <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(comment.username)}`} alt={comment.username} fill className="object-cover" />
-            </div>
-            <div className="flex-1 min-w-0">
-                <p>
-                    <span className="font-bold mr-1.5 text-black cursor-pointer hover:underline">@{comment.username}</span>
-                    <span className="text-text-secondary">{comment.text}</span>
-                </p>
-                <div className="flex items-center gap-3 mt-0.5">
-                    <p className="text-[10px] text-text-muted">
-                        {new Date(comment.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </p>
-                    {currentUser && (
-                        <button onClick={() => setShowReply(v => !v)} className="text-[10px] font-bold text-text-muted hover:text-primary transition-colors">
-                            Reply
-                        </button>
-                    )}
-                </div>
-
-                {/* Nested replies — always rendered recursively */}
-                {(comment.replies || []).length > 0 && (
-                    <div className="mt-2 space-y-2 pl-3 border-l-2 border-border">
-                        {(comment.replies || []).map(reply => (
-                            <CommentRow key={reply.id} comment={reply} signalId={signalId} currentUser={currentUser} depth={depth + 1} />
-                        ))}
-                    </div>
-                )}
-
-                {showReply && (
-                    <ReplyInput
-                        placeholder={`Reply to @${comment.username}...`}
-                        onSubmit={handleReply}
-                        onCancel={() => setShowReply(false)}
-                    />
-                )}
-            </div>
-        </div>
-    )
-}
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Keep old name as alias for the main comment list
-function CommentThread({ comment, signalId, currentUser }: { comment: Comment; signalId: string; currentUser: string | null | undefined }) {
-    return <CommentRow comment={comment} signalId={signalId} currentUser={currentUser} depth={0} />
-}
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 // Known role keywords — only these are treated as the role suffix
 const ROLE_KEYWORDS = new Set(['founder', 'investor', 'mentor', 'talent', 'expert'])
@@ -164,6 +50,7 @@ function formatUsername(username: string): string {
 
 interface SignalCardProps {
     id: string
+    type?: string // SIGNAL or SPACE
     title: string
     username: string
     timeAgo: string
@@ -177,32 +64,68 @@ interface SignalCardProps {
     }
     hideViews?: boolean
     userPlan?: string
+    userId?: string
     createdAt?: number | string
     onRefresh?: () => void
+    avatarUrl?: string | null
+    
+    // Space specific
+    address?: string
+    stage?: string
+    city?: string
+    state?: string
+    website?: string
+    contact?: string
 }
 
-export default function SignalCard({ id, title, username, timeAgo, category, description, strength, stats, hideViews = false, userPlan = 'free', createdAt, onRefresh }: SignalCardProps) {
+export default function SignalCard({ 
+    id, type = 'SIGNAL', title, username, timeAgo, category, description, strength, stats, 
+    hideViews = false, userPlan = 'free', userId, createdAt, onRefresh, avatarUrl,
+    address, stage, city, state, website, contact
+}: SignalCardProps) {
     const { user, token } = useAuthStore()
     const currentUser = user?.username
-    const { deleteSignal, signals } = useSignalStore()
+    const isOwner = user?.id === userId || currentUser === username
+    const { deleteSignal, signals, setComments } = useSignalStore()
     const { connections, sentRequests, pendingRequests, sendRequest } = useNetworkStore()
     const { addResponse, hasResponded } = useResponseStore()
+    
     const [showDropdown, setShowDropdown] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false)
     const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+    const [showInsights, setShowInsights] = useState(false)
+    const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
+        isOpen: false,
+        type: 'error',
+        title: '',
+        message: ''
+    })
+    
+    const [localStats, setLocalStats] = useState(stats || { responses: 0, offers: 0, views: 0 })
+
+    useEffect(() => {
+        setLocalStats(stats)
+    }, [stats])
+
+    const closeStatusModal = () => setStatusModal(prev => ({ ...prev, isOpen: false }))
     const [showComments, setShowComments] = useState(false)
+    const [isLoadingComments, setIsLoadingComments] = useState(false)
     const [commentText, setCommentText] = useState('')
     const [addedToNetwork, setAddedToNetwork] = useState(false)
     const [justResponded, setJustResponded] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [visibleCount, setVisibleCount] = useState(1)
+    const [localComments, setLocalComments] = useState<Comment[]>([])
     const dropdownRef = useRef<HTMLDivElement>(null)
+
     const safeConnections = Array.isArray(connections) ? connections : []
     const safeSent = Array.isArray(sentRequests) ? sentRequests : []
     const safePending = Array.isArray(pendingRequests) ? pendingRequests : []
 
-    const alreadyConnected = safeConnections.some(c => c.username === username)
-    const alreadyPending = safeSent.some(r => r.username === username && r.status === 'pending')
+    const alreadyConnected = safeConnections.some(c => c.requesterUsername === username || c.receiverUsername === username)
+    const alreadyPending = safeSent.some(r => (r.requesterUsername === username || r.receiverUsername === username) && (r.status === 'PENDING' || r.status === 'pending'))
     const alreadyResponded = hasResponded(id)
 
     useEffect(() => {
@@ -214,23 +137,54 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [])
-    const isOwner = currentUser === username
+
+    const fetchCurrentComments = async () => {
+        if (showComments) {
+            setIsLoadingComments(true);
+            const { data, error } = await commentsApi.getForSignal(id);
+            if (!error && data) {
+                const mapRecursive = (c: any): Comment => ({
+                    id: c.id,
+                    username: c.username,
+                    userId: c.userId,
+                    text: c.content,
+                    timestamp: new Date(c.createdAt).getTime(),
+                    avatarUrl: c.avatarUrl,
+                    replies: (c.replies || []).map(mapRecursive)
+                });
+                const mappedComments: Comment[] = data.map(mapRecursive);
+                setLocalComments(mappedComments);
+                setComments(id, mappedComments);
+                setLocalStats(prev => ({ ...prev, responses: data.length }));
+            }
+            setIsLoadingComments(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchCurrentComments();
+    }, [showComments, id]);
+
     const storeSignal = signals.find(s => s.id === id)
     
     // Fallback object so modals can open even for backend-only signals not in local store
-    const currentSignal: Signal = storeSignal || {
-        id,
-        title,
-        username,
-        timeAgo,
-        category,
-        description,
-        strength,
-        status: 'Active',
-        stats: stats || { responses: 0, offers: 0, views: 0 },
-        userPlan,
-        createdAt: typeof createdAt === 'string' ? new Date(createdAt).getTime() : createdAt
-    } as Signal
+    const currentSignal: Signal = {
+        ...(storeSignal || {
+            id,
+            title,
+            username,
+            timeAgo,
+            category,
+            description,
+            strength,
+            status: 'Active',
+            stats: stats || { responses: 0, offers: 0, views: 0 },
+            userPlan,
+            userId: userId || storeSignal?.userId,
+            createdAt: typeof createdAt === 'string' ? new Date(createdAt).getTime() : createdAt
+        } as Signal),
+        comments: (storeSignal?.comments && storeSignal.comments.length > 0) ? storeSignal.comments : localComments
+    }
 
     // Days left calculation using helper
     const { isExpired, daysLeft, hoursLeft, totalDuration, progressPercent } = getSignalExpiration(currentSignal || { strength, createdAt } as any);
@@ -257,25 +211,38 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
             className="bg-white border border-border p-5 rounded-xl mb-4 hover:border-text-muted transition-all group shadow-sm hover:shadow-md"
         >
             <div className="flex justify-between items-start mb-4">
-                <Link href={`/profile/${username}`} className="flex items-center gap-3 group/profile hover:opacity-80 transition-opacity">
+                <Link href={`/profile/${userId || username}`} className="flex items-center gap-3 group/profile hover:opacity-80 transition-opacity">
                     <VerifiedAvatar
                         username={username}
+                        avatarUrl={avatarUrl}
                         plan={userPlan}
                         size="w-10 h-10"
                         badgeSize="w-4 h-4"
                     />
-                    <div>
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        <span className="text-sm font-bold truncate hover:underline cursor-pointer">{username}</span>
-                        <span className="text-text-muted text-xs shrink-0">•</span>
-                        <span className="text-text-muted text-[10px] font-bold uppercase tracking-widest shrink-0">{timeAgo}</span>
-                    </div>
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                            <span className="text-sm font-bold truncate hover:underline cursor-pointer">{username}</span>
+                            {type === 'SPACE' && <Building className="w-3.5 h-3.5 text-primary" />}
+                            <span className="text-text-muted text-xs shrink-0">•</span>
+                            <span className="text-text-muted text-[10px] font-bold uppercase tracking-widest shrink-0">{timeAgo}</span>
+                        </div>
+                        {address && (
+                            <div className="flex items-center gap-1 mt-0.5 opacity-60">
+                                <MapPin className="w-2.5 h-2.5" />
+                                <span className="text-[10px] font-medium truncate max-w-[150px]">{address}{city ? `, ${city}` : ''}</span>
+                            </div>
+                        )}
                     </div>
                 </Link>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wider font-bold bg-primary text-white px-2 py-0.5 rounded-full">
-                        {category}
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${type === 'SPACE' ? 'bg-black text-white' : 'bg-primary text-white'}`}>
+                        {type === 'SPACE' ? (strength || 'Space') : category}
                     </span>
+                    {stage && (
+                        <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-surface-2 border border-border text-text-secondary">
+                            {stage}
+                        </span>
+                    )}
                     {isOwner ? (
                         <div className="relative" ref={dropdownRef}>
                             <button 
@@ -309,18 +276,7 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                                             disabled={isDeleting}
                                             onClick={async (e) => {
                                                 e.stopPropagation();
-                                                if (!confirm('Permanently delete this signal?')) return;
-                                                
-                                                setIsDeleting(true);
-                                                const { error } = await signalsApi.delete(id);
-                                                
-                                                if (!error) {
-                                                    deleteSignal(id); // remove from local store too
-                                                    if (onRefresh) onRefresh();
-                                                } else {
-                                                    alert('Failed to delete: ' + error);
-                                                }
-                                                setIsDeleting(false);
+                                                setIsDeleteConfirmOpen(true);
                                                 setShowDropdown(false);
                                             }}
                                             className="px-4 py-2.5 text-sm text-left hover:bg-red-50 transition-colors w-full flex items-center gap-2 text-accent-red font-medium disabled:opacity-50"
@@ -344,15 +300,32 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                 <p className="text-text-secondary text-sm mb-4 line-clamp-2">{description}</p>
             </Link>
 
+            {website && (
+                <div className="mb-4">
+                    <a 
+                        href={website.startsWith('http') ? website : `https://${website}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/10 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Project Website
+                    </a>
+                </div>
+            )}
+
             <div className="flex items-center gap-6 mb-5">
                 <div className="flex flex-col">
                     <span className="text-[10px] text-text-muted uppercase">Responses</span>
-                    <span className="font-mono text-sm">{stats.responses}</span>
+                    <span className="font-mono text-sm">{localStats.responses}</span>
                 </div>
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-text-muted uppercase">Offers</span>
-                    <span className="font-mono text-sm">{stats.offers}</span>
-                </div>
+                {type !== 'SPACE' && (
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-text-muted uppercase">Offers</span>
+                        <span className="font-mono text-sm">{stats.offers}</span>
+                    </div>
+                )}
                 {!hideViews && (
                     <div className="flex flex-col">
                         <span className="text-[10px] text-text-muted uppercase">Views</span>
@@ -389,13 +362,16 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
             {respondentToShow && (
                 <div className="mb-4 flex items-center gap-2">
                     <div className="flex -space-x-2">
-                        <div className="w-5 h-5 rounded-full border border-white bg-surface-2 relative overflow-hidden">
-                            <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(respondentToShow)}`} alt="proof" fill className="object-cover" unoptimized />
-                        </div>
+                        <VerifiedAvatar
+                            username={respondentToShow}
+                            avatarUrl={currentSignal.comments?.find(c => c.username === respondentToShow)?.avatarUrl}
+                            size="w-5 h-5"
+                            badgeSize="w-2 h-2"
+                        />
                     </div>
                     <p className="text-[11px] text-text-secondary">
                         Responded by <span className="font-bold text-black border-b border-black/20">{respondentToShow === currentUser ? 'you' : `@${respondentToShow}`}</span>
-                        {stats.responses > 1 && ` and ${stats.responses - 1} others`}
+                        {localStats.responses > 1 && ` and ${localStats.responses - 1} others`}
                     </p>
                 </div>
             )}
@@ -403,9 +379,11 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
             {/* Actions */}
 
             <div className="flex gap-2">
-                <button onClick={() => setIsHelpModalOpen(true)} className="flex-1 bg-primary text-white py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all">
-                    <Zap className="w-4 h-4 fill-white" /> Help
-                </button>
+                {(!isOwner && type !== 'SPACE') && (
+                    <button onClick={() => setIsHelpModalOpen(true)} className="flex-1 bg-primary text-white py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all">
+                        <Zap className="w-4 h-4 fill-white" /> Help
+                    </button>
+                )}
                 <button
                     onClick={() => setShowComments(!showComments)}
                     className={`flex-1 border py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all ${
@@ -418,42 +396,87 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                     Respond
                 </button>
                 <button
-                    onClick={async () => {
-                        if (!isOwner && !alreadyConnected && !alreadyPending && !addedToNetwork) {
-                            try {
-                                await sendRequest(id, 'I want to connect!', currentSignal?.username);
-                                setAddedToNetwork(true);
-                            } catch (err) {
-                                // Error handled in store
-                            }
-                        }
+                    onClick={() => {
+                        const url = `${window.location.origin}/signals/${id}`;
+                        navigator.clipboard.writeText(url);
+                        setStatusModal({
+                            isOpen: true,
+                            type: 'upgrade', // Use upgrade as a 'success' style here
+                            title: 'Link Copied',
+                            message: 'Signal link copied to clipboard! Share it with your network.'
+                        });
                     }}
-                    disabled={isOwner}
-                    className={`px-3 border rounded-md transition-all duration-300 ${
-                        isOwner
-                            ? 'border-border opacity-30 cursor-not-allowed'
-                            : alreadyConnected
+                    className="flex-none aspect-square border border-border hover:bg-surface-2 p-2.5 rounded-md transition-all flex items-center justify-center"
+                    title="Share Signal"
+                >
+                    <Share2 className="w-4 h-4" />
+                </button>
+                {!isOwner && (
+                    <button
+                        onClick={async () => {
+                            if (!isOwner && !alreadyConnected && !alreadyPending && !addedToNetwork) {
+                                try {
+                                    await sendRequest(type === 'SPACE' ? null : id, 'I want to connect!', userId || currentSignal?.userId || '', type === 'SPACE' ? id : null);
+                                    setAddedToNetwork(true);
+                                } catch (err: any) {
+                                    if (err.message === 'Request already exists' || err.message?.includes('already connected')) {
+                                        setAddedToNetwork(true);
+                                        setStatusModal({
+                                            isOpen: true,
+                                            type: 'duplicate',
+                                            title: 'Already Connected',
+                                            message: 'You are already connected or have a pending request with this person.'
+                                        })
+                                    } else {
+                                        setStatusModal({
+                                            isOpen: true,
+                                            type: 'error',
+                                            title: 'Request Failed',
+                                            message: err.message || 'Something went wrong while sending your request.'
+                                        })
+                                    }
+                                }
+                            } else if (alreadyPending || addedToNetwork) {
+                                setStatusModal({
+                                    isOpen: true,
+                                    type: 'duplicate',
+                                    title: 'Request Pending',
+                                    message: 'A connection request is already pending with this person.'
+                                })
+                            } else if (alreadyConnected) {
+                                setStatusModal({
+                                    isOpen: true,
+                                    type: 'duplicate',
+                                    title: 'Already Connected',
+                                    message: 'You are already connected with this person.'
+                                })
+                            }
+                        }}
+                        disabled={alreadyConnected || alreadyPending || addedToNetwork}
+                        className={`px-3 border rounded-md transition-all duration-300 ${
+                            alreadyConnected
                                 ? 'bg-black text-white'
                                 : alreadyPending || addedToNetwork
                                     ? 'bg-black text-white shadow-md'
                                     : 'border-border hover:bg-surface-2'
-                    }`}
-                    title={isOwner ? 'Your own signal' : alreadyConnected ? 'Connected' : alreadyPending ? 'Request sent — pending' : 'Send connection request'}
-                >
-                    {alreadyConnected ? (
-                        <CheckCheck className="w-4 h-4" />
-                    ) : alreadyPending || addedToNetwork ? (
-                        <motion.div 
-                            initial={{ scale: 0.5, opacity: 0 }} 
-                            animate={{ scale: [0.8, 1.2, 1], rotate: [0, -10, 10, -10, 0], opacity: 1 }} 
-                            transition={{ type: "tween", duration: 0.4 }}
-                        >
+                        }`}
+                        title={alreadyConnected ? 'Connected' : alreadyPending ? 'Request sent — pending' : 'Send connection request'}
+                    >
+                        {alreadyConnected ? (
                             <CheckCheck className="w-4 h-4" />
-                        </motion.div>
-                    ) : (
-                        <UserPlus className="w-4 h-4" />
-                    )}
-                </button>
+                        ) : alreadyPending || addedToNetwork ? (
+                            <motion.div 
+                                initial={{ scale: 0.5, opacity: 0 }} 
+                                animate={{ scale: [0.8, 1.2, 1], rotate: [0, -10, 10, -10, 0], opacity: 1 }} 
+                                transition={{ type: "tween", duration: 0.4 }}
+                            >
+                                <CheckCheck className="w-4 h-4" />
+                            </motion.div>
+                        ) : (
+                            <UserPlus className="w-4 h-4" />
+                        )}
+                    </button>
+                )}
             </div>
             
             {/* Instagram Style Threaded Comments Section */}
@@ -465,36 +488,98 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                         exit={{ opacity: 0, height: 0 }}
                         className="mt-4 pt-4 border-t border-border overflow-hidden"
                     >
-                        <div className="space-y-4 max-h-80 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
                             {(currentSignal?.comments || []).length === 0 ? (
                                 <p className="text-center text-xs text-text-muted py-4">No responses yet. Be the first to respond!</p>
                             ) : (
-                                (currentSignal?.comments || []).map(comment => (
-                                    <CommentThread
-                                        key={comment.id}
-                                        comment={comment}
-                                        signalId={id}
-                                        currentUser={currentUser}
-                                    />
-                                ))
+                                <>
+                                    {(currentSignal?.comments || []).slice(0, visibleCount).map(comment => (
+                                        <CommentThread
+                                            key={comment.id}
+                                            comment={comment}
+                                            signalId={id}
+                                            currentUser={currentUser}
+                                            currentUserId={user?.id}
+                                            isSignalOwner={isOwner}
+                                            onReplySuccess={fetchCurrentComments}
+                                            onDeleteSuccess={(deletedId) => {
+                                                const removeRecursive = (list: Comment[]): Comment[] => {
+                                                    return list.filter(c => c.id !== deletedId).map(c => ({
+                                                        ...c,
+                                                        replies: removeRecursive(c.replies)
+                                                    }));
+                                                };
+                                                setLocalComments(prev => removeRecursive(prev));
+                                                setLocalStats(prev => ({ ...prev, responses: Math.max(0, prev.responses - 1) }));
+                                            }}
+                                        />
+                                    ))}
+                                    
+                                    {currentSignal?.comments && currentSignal.comments.length > visibleCount && (
+                                        <button 
+                                            onClick={() => setVisibleCount(prev => prev + 5)}
+                                            className="text-[10px] font-bold text-primary hover:underline py-2 w-full text-center uppercase tracking-widest"
+                                        >
+                                            View more responses ({currentSignal.comments.length - visibleCount} left)
+                                        </button>
+                                    )}
+                                </>
                             )}
+                        </div>
+
+                        {/* Instagram Style Emojis */}
+                        <div className="mt-3 flex gap-4 px-1 py-1 overflow-x-auto no-scrollbar">
+                            {['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'].map(emoji => (
+                                <button
+                                    key={emoji}
+                                    onClick={() => setCommentText(prev => prev + emoji)}
+                                    className="text-xl hover:scale-125 transition-transform"
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
                         </div>
 
                         {/* Main Comment Input */}
                         <div className="mt-4 flex gap-2 items-center border-t border-border pt-3">
-                            <div className="w-8 h-8 rounded-full border border-border bg-surface-2 relative overflow-hidden shrink-0">
-                                <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser || 'user')}`} alt="me" fill className="object-cover" unoptimized />
-                            </div>
+                            <VerifiedAvatar
+                                username={user?.name || user?.username || 'U'}
+                                avatarUrl={user?.avatarUrl}
+                                size="w-8 h-8"
+                                badgeSize="w-3 h-3"
+                            />
                             <input
                                 type="text"
                                 placeholder="Add a comment..."
                                 className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-text-muted ml-2"
                                 value={commentText}
                                 onChange={(e) => setCommentText(e.target.value)}
-                                onKeyDown={(e) => {
+                                onKeyDown={async (e) => {
                                     if (e.key === 'Enter' && commentText.trim()) {
-                                        useSignalStore.getState().addComment(id, commentText.trim(), currentUser || 'user')
-                                        setCommentText('')
+                                        const text = commentText.trim();
+                                        setCommentText('');
+                                        const { data, error } = await commentsApi.post(id, text);
+                                        if (!error && data) {
+                                            const newComment: Comment = {
+                                                id: data.id,
+                                                username: data.username,
+                                                userId: data.userId,
+                                                text: data.content,
+                                                timestamp: new Date(data.createdAt).getTime(),
+                                                avatarUrl: data.avatarUrl || user?.avatarUrl,
+                                                replies: []
+                                            };
+                                            setLocalComments(prev => [newComment, ...prev]);
+                                            setLocalStats(prev => ({ ...prev, responses: prev.responses + 1 }));
+                                        } else {
+                                            setStatusModal({
+                                                isOpen: true,
+                                                type: 'error',
+                                                title: 'Comment Failed',
+                                                message: error || 'Failed to post comment'
+                                            });
+                                        }
+                                        
                                         if (!alreadyResponded && !isOwner) {
                                             addResponse({ signalId: id, signalTitle: title, signalUsername: username, signalCategory: category })
                                         }
@@ -503,10 +588,32 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                             />
                             <button 
                                 disabled={!commentText.trim()}
-                                onClick={() => {
+                                onClick={async () => {
                                     if (commentText.trim()) {
-                                        useSignalStore.getState().addComment(id, commentText.trim(), currentUser || 'user')
-                                        setCommentText('')
+                                        const text = commentText.trim();
+                                        setCommentText('');
+                                        const { data, error } = await commentsApi.post(id, text);
+                                        if (!error && data) {
+                                            const newComment: Comment = {
+                                                id: data.id,
+                                                username: data.username,
+                                                userId: data.userId,
+                                                text: data.content,
+                                                timestamp: new Date(data.createdAt).getTime(),
+                                                avatarUrl: data.avatarUrl || user?.avatarUrl,
+                                                replies: []
+                                            };
+                                            setLocalComments(prev => [newComment, ...prev]);
+                                            setLocalStats(prev => ({ ...prev, responses: prev.responses + 1 }));
+                                        } else {
+                                            setStatusModal({
+                                                isOpen: true,
+                                                type: 'error',
+                                                title: 'Comment Failed',
+                                                message: error || 'Failed to post comment'
+                                            });
+                                        }
+                                        
                                         if (!alreadyResponded && !isOwner) {
                                             addResponse({ signalId: id, signalTitle: title, signalUsername: username, signalCategory: category })
                                         }
@@ -534,6 +641,7 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                     onClose={() => setIsInsightsModalOpen(false)} 
                     stats={stats}
                     signalTitle={title}
+                    hideOffers={type === 'SPACE'}
                 />
             )}
             <HelpModal 
@@ -541,6 +649,43 @@ export default function SignalCard({ id, title, username, timeAgo, category, des
                 onClose={() => setIsHelpModalOpen(false)} 
                 signalId={id} 
                 signalTitle={title} 
+            />
+            <StatusModal 
+                isOpen={statusModal.isOpen} 
+                onClose={closeStatusModal}
+                type={statusModal.type}
+                title={statusModal.title}
+                message={statusModal.message}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                isDeleting={isDeleting}
+                title={type === 'SPACE' ? "Delete Space?" : "Delete Signal?"}
+                message={type === 'SPACE' 
+                    ? "This will permanently remove this collaboration space and all its data from the ecosystem."
+                    : "This action is permanent and will remove all responses and data associated with this signal."
+                }
+                onConfirm={async () => {
+                    setIsDeleting(true);
+                    const { error } = await signalsApi.delete(id);
+                    if (!error) {
+                        deleteSignal(id);
+                        if (onRefresh) onRefresh();
+                        setIsDeleteConfirmOpen(false);
+                    } else {
+                        setStatusModal({
+                            isOpen: true,
+                            type: 'error',
+                            title: 'Delete Failed',
+                            message: error || 'Failed to delete signal'
+                        })
+                        setIsDeleteConfirmOpen(false);
+                    }
+                    setIsDeleting(false);
+                }}
             />
         </motion.div>
     )

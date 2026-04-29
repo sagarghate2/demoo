@@ -10,12 +10,12 @@ public class PlanService {
     private static final int UNLIMITED = -1;
 
     // 🔹 Generic limit checker (core logic)
-   private boolean isAllowed(int limit, int used) {
+   private boolean isAllowed(int limit, long used) {
     return limit == Integer.MAX_VALUE || used < limit;
 }
 
     //  SIGNALS
-    public boolean canPostSignal(Plan plan, int activeSignals) {
+    public boolean canPostSignal(Plan plan, long activeSignals) {
         int limit = PlanConfig.MAX_SIGNALS.getOrDefault(plan, 0);
         return isAllowed(limit, activeSignals);
     }
@@ -25,7 +25,7 @@ public class PlanService {
     }
 
     // OFFERS
-    public boolean canSendOffer(Plan plan, int usedOffers) {
+    public boolean canSendOffer(Plan plan, long usedOffers) {
         int limit = PlanConfig.MAX_OFFERS.getOrDefault(plan, 0);
         return isAllowed(limit, usedOffers);
     }
@@ -106,7 +106,7 @@ public class PlanService {
             || plan == Plan.GROWTH || plan == Plan.ANNUAL;
     }
 
-    public boolean canUseAI(Plan plan, int usedToday) {
+    public boolean canUseAI(Plan plan, long usedToday) {
     int limit = PlanConfig.MAX_AI_CALLS.getOrDefault(plan, 0);
     return isAllowed(limit, usedToday);
 }

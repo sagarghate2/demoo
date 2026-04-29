@@ -7,5 +7,6 @@ import java.util.UUID;
 public class ConnectionRequestDTO {
     private UUID receiverId;
     private UUID signalId;
+    private UUID spaceId;
     private String message;
 }

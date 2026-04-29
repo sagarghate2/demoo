@@ -42,12 +42,41 @@ public class Connection {
     @JoinColumn(name = "signal_id", nullable = true) 
     private Signal signal;
 
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "space_id", nullable = true)
+    private NearbySpace nearbySpace;
+
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String status = "pending";
 
     @Column(columnDefinition = "TEXT")
     private String message;
+
+    @org.hibernate.annotations.Formula("(SELECT u.username FROM users u WHERE u.id = requester_id)")
+    private String requesterUsername;
+
+    @org.hibernate.annotations.Formula("(SELECT u.name FROM users u WHERE u.id = requester_id)")
+    private String requesterName;
+
+    @org.hibernate.annotations.Formula("(SELECT u.avatar_url FROM users u WHERE u.id = requester_id)")
+    private String requesterAvatarUrl;
+
+    @org.hibernate.annotations.Formula("(SELECT u.role FROM users u WHERE u.id = requester_id)")
+    private String requesterRole;
+
+    @org.hibernate.annotations.Formula("(SELECT u.username FROM users u WHERE u.id = receiver_id)")
+    private String receiverUsername;
+
+    @org.hibernate.annotations.Formula("(SELECT u.name FROM users u WHERE u.id = receiver_id)")
+    private String receiverName;
+
+    @org.hibernate.annotations.Formula("(SELECT u.avatar_url FROM users u WHERE u.id = receiver_id)")
+    private String receiverAvatarUrl;
+
+    @org.hibernate.annotations.Formula("(SELECT u.role FROM users u WHERE u.id = receiver_id)")
+    private String receiverRole;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -68,5 +97,9 @@ public class Connection {
 
     public UUID getSignalId() {
         return signal != null ? signal.getId() : null;
+    }
+
+    public UUID getSpaceId() {
+        return nearbySpace != null ? nearbySpace.getId() : null;
     }
 }

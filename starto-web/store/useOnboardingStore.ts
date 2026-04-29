@@ -6,6 +6,7 @@ interface OnboardingState {
     industry: string
     subIndustry: string
     city: string
+    address: string
     lat: number | null
     lng: number | null
     name: string
@@ -22,9 +23,10 @@ interface OnboardingState {
 
     setRole: (role: string) => void
     setIndustry: (industry: string, subIndustry?: string) => void
-    setLocation: (city: string, lat: number, lng: number) => void
+    setLocation: (city: string, lat: number, lng: number, address?: string) => void
     setProfile: (profile: Partial<OnboardingState>) => void
     setSubscription: (plan: 'Free' | 'Pro' | 'Founder') => void
+    setAvatar: (url: string | null) => void
 }
 
 export const useOnboardingStore = create<OnboardingState>()(
@@ -34,6 +36,7 @@ export const useOnboardingStore = create<OnboardingState>()(
             industry: '',
             subIndustry: '',
             city: '',
+            address: '',
             lat: null,
             lng: null,
             name: '',
@@ -50,9 +53,10 @@ export const useOnboardingStore = create<OnboardingState>()(
 
             setRole: (role) => set({ role }),
             setIndustry: (industry, subIndustry = '') => set({ industry, subIndustry }),
-            setLocation: (city, lat, lng) => set({ city, lat, lng }),
+            setLocation: (city, lat, lng, address = '') => set({ city, lat, lng, address }),
             setProfile: (profile) => set((state) => ({ ...state, ...profile })),
             setSubscription: (plan) => set({ subscription: plan, isVerified: plan !== 'Free' }),
+            setAvatar: (avatarUrl) => set({ avatarUrl }),
         }),
         {
             name: 'starto-onboarding-storage',

@@ -104,6 +104,9 @@ private String githubUrl;
     @Column(name = "plan_expires_at")
     private OffsetDateTime planExpiresAt;
 
+    @Column(name = "plan_purchased_at")
+    private OffsetDateTime planPurchasedAt;
+
     @Formula("(SELECT COALESCE((SELECT COUNT(*) FROM signals s WHERE s.user_id = id AND s.status = 'open') + (SELECT COUNT(*) FROM nearby_spaces ns WHERE ns.user_id = id), 0))")
     private Integer signalCount;
 

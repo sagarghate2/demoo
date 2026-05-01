@@ -1,7 +1,47 @@
+"use client"
+
 import Sidebar from '@/components/feed/Sidebar'
 import { Zap, Clock, ShieldAlert, Send, ArrowRight } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { signalsApi } from '@/lib/apiClient'
+import { useAuthStore } from '@/store/useAuthStore'
+import { toast } from 'react-hot-toast'
 
 export default function InstantHelp() {
+    const [description, setDescription] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const router = useRouter()
+    const { user } = useAuthStore()
+
+    const handleEmit = async () => {
+        if (!description.trim()) {
+            toast.error("Please describe your emergency")
+            return
+        }
+        setIsSubmitting(true)
+        const { data, error } = await signalsApi.create({
+            type: 'instant_help',
+            title: 'Urgent Help Request',
+            description,
+            category: 'instant_help',
+            seeking: 'help',
+            stage: 'active',
+            city: user?.city || 'Unknown',
+            state: user?.state || 'Unknown',
+            signalStrength: 'urgent',
+            timelineDays: 1,
+        } as any)
+        setIsSubmitting(false)
+
+        if (error) {
+            toast.error("Failed to emit signal: " + error)
+        } else if (data) {
+            toast.success("Urgent signal emitted to all nodes!")
+            router.push(`/signals/${data.id}`)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-background flex justify-center">
             <div className="max-w-[1400px] w-full flex">
@@ -27,6 +67,8 @@ export default function InstantHelp() {
                             <div>
                                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 block">What do you need help with?</label>
                                 <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Describe your emergency..."
                                     className="w-full bg-surface-2 p-4 rounded-md border border-border outline-none focus:border-accent-red h-24 resize-none transition-all"
                                 />
@@ -38,8 +80,12 @@ export default function InstantHelp() {
                                     </button>
                                 ))}
                             </div>
-                            <button className="w-full bg-accent-red text-white py-4 rounded-md font-bold uppercase tracking-widest shadow-lg shadow-accent-red/20 hover:opacity-90">
-                                Emit Urgent Signal
+                            <button 
+                                onClick={handleEmit}
+                                disabled={isSubmitting}
+                                className="w-full bg-accent-red text-white py-4 rounded-md font-bold uppercase tracking-widest shadow-lg shadow-accent-red/20 hover:opacity-90 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Emitting...' : 'Emit Urgent Signal'}
                             </button>
                         </div>
                     </section>

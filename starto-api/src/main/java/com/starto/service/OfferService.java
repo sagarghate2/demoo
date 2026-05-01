@@ -132,7 +132,7 @@ public Offer sendOffer(User talent, OfferRequestDTO dto) {
 
         // Notify
         webSocketService.send("/topic/offers/" + updated.getRequester().getId(), Map.of("type", "OFFER_ACCEPTED", "data", updated));
-        notificationService.send(updated.getRequester().getId(), "OFFER_ACCEPTED", "Offer Accepted!", "Your offer was accepted and a connection was created", null);
+        notificationService.send(updated.getRequester().getId(), "OFFER_ACCEPTED", "Offer Accepted!", "Your offer was accepted and a connection was created", Map.of("signalId", offer.getSignal().getId().toString()));
 
         return updated;
     }

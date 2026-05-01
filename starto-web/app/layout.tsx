@@ -5,8 +5,8 @@ import AuthProvider from '@/components/AuthProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 export const metadata: Metadata = {
-    title: 'Starto V2',
-    description: 'Real-Time Ecosystem Intelligence Platform',
+    title: 'Starto V3',
+    description: 'Unified Growth Ecosystem Platform',
 };
 
 export default function RootLayout({

@@ -402,7 +402,7 @@ export default function NetworkPage() {
 
                 {/* Right sidebar */}
                 <aside className="hidden xl:block w-[320px] p-8">
-                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm mb-6">
                         <h3 className="font-display text-lg mb-4">Network Stats</h3>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">

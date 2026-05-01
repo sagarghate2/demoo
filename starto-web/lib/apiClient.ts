@@ -121,6 +121,7 @@ export interface ApiUnifiedPost {
     username: string;
     userId: string;
     userPlan: string;
+    userIsVerified?: boolean;
     userRole?: string;
     createdAt: string;
     avatarUrl?: string | null;
@@ -251,7 +252,7 @@ export interface CreateSignalPayload {
 
 export const signalsApi = {
     /** GET /api/signals — public */
-    getAll: (params?: { city?: string; seeking?: string; username?: string; page?: number }) => {
+    getAll: (params?: { city?: string; seeking?: string; username?: string; userId?: string; page?: number }) => {
         const qs = params
             ? '?' + Object.entries(params)
                 .filter(([, v]) => v != null)
@@ -324,12 +325,6 @@ export const signalsApi = {
     getSpaces: (lat: number, lng: number, radiusKm: number = 10) =>
         apiFetch<any[]>(`/api/signals/spaces?lat=${lat}&lng=${lng}&radiusKm=${radiusKm}`),
 
-    /** POST /api/signals/spaces — requires auth */
-    createSpace: (payload: any) =>
-        apiFetch<any>('/api/signals/spaces', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        }),
 };
 
 // ─── User API ────────────────────────────────────────────────────────────────

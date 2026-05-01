@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn } from 'lucide-react'
+import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn, Bell, Info } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
@@ -8,15 +8,17 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
-import { signalsApi } from '@/lib/apiClient'
+import { signalsApi, notificationsApi } from '@/lib/apiClient'
 import VerifiedAvatar from './VerifiedAvatar'
 
 const navItems = [
     { icon: Home, label: 'Home Feed', href: '/feed' },
     { icon: Zap, label: 'My Signals', href: '/feed/my' },
+    { icon: Bell, label: 'Notifications', href: '/notifications' },
     { icon: BarChart3, label: 'Starto AI', href: '/explore' },
     { icon: Users, label: 'My Network', href: '/network' },
     { icon: MapPin, label: 'Nearby', href: '/nearby' },
+    { icon: Info, label: 'About Us', href: '/about' },
     { icon: Settings, label: 'Settings', href: '/profile' },
 ]
 
@@ -27,6 +29,7 @@ export default function Sidebar() {
     const { connections, pendingRequests, offers } = useNetworkStore()
     const [totalSignalCount, setTotalSignalCount] = useState(0)
     const [myNetworkCount, setMyNetworkCount] = useState(0)
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0)
     const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'offline'>('checking')
 
     // Fetch true counts from backend
@@ -41,6 +44,11 @@ export default function Sidebar() {
             });
             // Also networking count could be fetched here if needed
             setMyNetworkCount(user.networkSize ?? connections.length);
+
+            // Fetch unread notifications
+            notificationsApi.getUnreadCount().then(({ data }) => {
+                if (data) setUnreadNotifCount(data.count)
+            })
         }
     }, [isAuthenticated, user, signals, connections])
 
@@ -61,6 +69,7 @@ export default function Sidebar() {
                         username={user.name || user.username || ''}
                         avatarUrl={user.avatarUrl}
                         plan={user.subscription || user.plan}
+                        isVerified={user.isVerified}
                         size="w-10 h-10"
                         badgeSize="w-3.5 h-3.5"
                         fallback={<Users className="w-6 h-6 text-text-muted" />}
@@ -78,8 +87,8 @@ export default function Sidebar() {
                         <LogIn className="w-5 h-5" />
                     </div>
                     <div className="overflow-hidden">
-                        <h3 className="font-bold text-sm text-primary">Login / Register</h3>
-                        <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold mt-0.5">Enter Ecosystem</p>
+                        <h3 className="font-semibold text-sm text-primary">Login / Register</h3>
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mt-0.5">Enter Ecosystem</p>
                     </div>
                 </Link>
             )}
@@ -106,6 +115,11 @@ export default function Sidebar() {
                             </div>
                             {item.label === 'My Network' && hasNetworkNotifications && (
                                 <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-black'}`} title="New requests or offers" />
+                            )}
+                            {item.label === 'Notifications' && unreadNotifCount > 0 && (
+                                <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white text-primary' : 'bg-accent-red text-white'}`}>
+                                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                                </div>
                             )}
                         </Link>
                     )

@@ -19,6 +19,7 @@ public class UnifiedPostDTO {
     private String userPlan;
     private String userRole;
     private String avatarUrl;
+    private Boolean userIsVerified;
     private OffsetDateTime createdAt;
     
     // Stats for signals

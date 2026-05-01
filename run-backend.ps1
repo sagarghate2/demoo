@@ -26,6 +26,19 @@ if ($jdkPath) {
 }
 $env:Path = "$env:JAVA_HOME\bin;" + $env:Path
 
+# Load Environment Variables from starto-web/.env.local if available
+$envFile = "$PSScriptRoot\starto-web\.env.local"
+if (Test-Path $envFile) {
+    Write-Host "Loading environment variables from .env.local..." -ForegroundColor Cyan
+    Get-Content $envFile | Where-Object { $_ -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$' -and $_ -notmatch '^\s*#' } | ForEach-Object {
+        $key = $Matches[1].Trim()
+        $value = $Matches[2].Trim(" '`"")
+        if ($value -ne '') {
+            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        }
+    }
+}
+
 # Set Default Environment Variables for Local Development
 $env:DB_URL      = if ($env:DB_URL)      { $env:DB_URL }      else { "jdbc:postgresql://localhost:5432/starto" }
 $env:DB_USERNAME = if ($env:DB_USERNAME) { $env:DB_USERNAME } else { "postgres" }
@@ -38,7 +51,7 @@ $env:SPRING_JPA_HIBERNATE_DDL_AUTO = if ($env:SPRING_JPA_HIBERNATE_DDL_AUTO) { $
 $env:FIREBASE_CONFIG_PATH = "$PSScriptRoot\starto-api\src\main\resources\firebase-service-account.json"
 
 # Priority 1: System Maven
-$MVN_CMD = where.exe mvn | Select-Object -First 1
+$MVN_CMD = where.exe mvn.cmd | Select-Object -First 1
 
 # Priority 2: Local Maven (download if missing)
 if ($null -eq $MVN_CMD) {
@@ -58,7 +71,7 @@ if ($null -eq $MVN_CMD) {
     $MVN_CMD = $MVN_BIN
 }
 
-Write-Host "Starting Starto V2 Backend..." -ForegroundColor Green
+Write-Host "Starting Starto V3 Backend..." -ForegroundColor Green
 Write-Host "Using Maven: $MVN_CMD" -ForegroundColor Gray
 Set-Location -Path "$PSScriptRoot\starto-api"
 & $MVN_CMD spring-boot:run

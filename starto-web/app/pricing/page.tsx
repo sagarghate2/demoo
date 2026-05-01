@@ -190,11 +190,11 @@ export default function PricingPage() {
                                         </ul>
 
                                         <button 
-                                            onClick={() => !isCurrent && handleUpgrade(p.plan)}
-                                            disabled={isCurrent || purchasing === p.plan}
+                                            onClick={() => handleUpgrade(p.plan)}
+                                            disabled={purchasing === p.plan}
                                             className={`w-full py-4 rounded-md font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all ${
                                                 isCurrent 
-                                                ? 'bg-accent-green/20 text-accent-green cursor-default' 
+                                                ? 'bg-accent-green text-white hover:bg-accent-green/90 shadow-lg shadow-accent-green/20' 
                                                 : isPro 
                                                 ? 'bg-white text-primary hover:bg-white/90' 
                                                 : 'bg-primary text-white hover:bg-primary/90'
@@ -203,7 +203,7 @@ export default function PricingPage() {
                                             {purchasing === p.plan ? (
                                                 <Loader2 className="w-4 h-4 animate-spin" />
                                             ) : isCurrent ? (
-                                                'Active Plan'
+                                                <>Renew / Top Up <Zap className="w-4 h-4 fill-current" /></>
                                             ) : (
                                                 <>Get Started <ArrowRight className="w-4 h-4" /></>
                                             )}

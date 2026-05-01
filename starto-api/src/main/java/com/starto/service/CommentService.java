@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -48,13 +49,16 @@ public class CommentService {
             signal.setResponseCount((signal.getResponseCount() != null ? signal.getResponseCount() : 0) + 1);
             signalRepository.save(signal);
 
-            notificationService.send(
-                    signal.getUser().getId(),
-                    "NEW_COMMENT",
-                    "New Comment",
-                    user.getName() + " commented on your signal",
-                    null
-            );
+            // Only notify signal owner if commenter is a different person - use toString() for safety
+            if (!user.getId().toString().equals(signal.getUser().getId().toString())) {
+                notificationService.send(
+                        signal.getUser().getId(),
+                        "NEW_COMMENT",
+                        "New Comment",
+                        user.getName() + " commented on your signal: " + signal.getTitle(),
+                        Map.of("signalId", signal.getId().toString())
+                );
+            }
 
             return toDTO(saved);
         }
@@ -76,6 +80,17 @@ public class CommentService {
         // Increment space response count
         space.setResponseCount((space.getResponseCount() != null ? space.getResponseCount() : 0) + 1);
         nearbySpaceRepository.save(space);
+
+        // Notify space owner if commenter is different person
+        if (!user.getId().toString().equals(space.getUser().getId().toString())) {
+            notificationService.send(
+                    space.getUser().getId(),
+                    "NEW_COMMENT",
+                    "New Comment",
+                    user.getName() + " commented on your space: " + space.getName(),
+                    Map.of("spaceId", space.getId().toString())
+            );
+        }
 
         return toDTO(saved);
     }
@@ -105,6 +120,17 @@ public class CommentService {
             signal.setResponseCount((signal.getResponseCount() != null ? signal.getResponseCount() : 0) + 1);
             signalRepository.save(signal);
 
+            // Notify parent comment owner if replier is different person
+            if (!user.getId().toString().equals(parentComment.getUser().getId().toString())) {
+                notificationService.send(
+                        parentComment.getUser().getId(),
+                        "REPLY",
+                        "New Reply",
+                        user.getName() + " replied to your comment on: " + signal.getTitle(),
+                        Map.of("signalId", signal.getId().toString())
+                );
+            }
+
             return toDTO(saved);
         }
 
@@ -125,6 +151,17 @@ public class CommentService {
         // Increment space response count
         space.setResponseCount((space.getResponseCount() != null ? space.getResponseCount() : 0) + 1);
         nearbySpaceRepository.save(space);
+
+        // Notify parent comment owner if replier is different person
+        if (!user.getId().toString().equals(parentComment.getUser().getId().toString())) {
+            notificationService.send(
+                    parentComment.getUser().getId(),
+                    "REPLY",
+                    "New Reply",
+                    user.getName() + " replied to your comment on space: " + space.getName(),
+                    Map.of("spaceId", space.getId().toString())
+            );
+        }
 
         return toDTO(saved);
     }

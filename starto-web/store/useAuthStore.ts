@@ -36,6 +36,7 @@ interface AuthState {
     token: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
+    isInitialized: boolean;
 
     setAuth: (firebaseUser: FirebaseUser, token: string, user: UserProfile) => void;
     clearAuth: () => void;

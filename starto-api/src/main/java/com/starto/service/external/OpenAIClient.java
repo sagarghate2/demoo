@@ -45,6 +45,12 @@ public void init() {
                 )
         ))
         .retrieve()   //  IMPORTANT
+        .onStatus(status -> status.isError(), response -> 
+            response.bodyToMono(String.class).flatMap(body -> {
+                log.error("OpenAI error body: {}", body);
+                return reactor.core.publisher.Mono.error(new RuntimeException("HTTP " + response.statusCode() + " - " + body));
+            })
+        )
         .bodyToMono(String.class)
         .retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(2)))
         .timeout(Duration.ofSeconds(30))
@@ -52,7 +58,11 @@ public void init() {
 
         } catch (Exception e) {
             log.error("OpenAI API failed", e);
-            throw new RuntimeException("OpenAI service unavailable");
+            String errMsg = e.getMessage() != null ? e.getMessage().replace("\"", "'").replace("\n", " ") : "Unknown";
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                errMsg += " | Cause: " + e.getCause().getMessage().replace("\"", "'").replace("\n", " ");
+            }
+            return "{\"marketDemand\":{\"score\":5,\"growthIndex\":\"N/A\",\"marketSaturation\":\"Unknown\",\"marketSummary\":\"OpenAI Error: " + errMsg + "\",\"drivers\":[],\"sources\":[]},\"competitors\":[],\"risks\":[]}";
         }
     }
 }

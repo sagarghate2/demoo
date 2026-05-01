@@ -9,6 +9,7 @@ import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { useRatingStore } from '@/store/useRatingStore'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { usersApi, connectionsApi, signalsApi, ApiUser, ApiSignal } from '@/lib/apiClient'
 import { motion } from 'framer-motion'
 import StatusModal from '@/components/feed/StatusModal'
@@ -17,6 +18,7 @@ import NetworkModal from '@/components/feed/NetworkModal'
 
 export default function PublicProfile({ params }: { params: { username: string } }) {
     const { username: paramUsername } = params
+    const router = useRouter()
 
     const formatURL = (url: string | null | undefined) => {
         if (!url) return '#'
@@ -81,9 +83,9 @@ export default function PublicProfile({ params }: { params: { username: string }
                     fetchSummary(data.id);
                 }
                 
-                // Use ID if available, otherwise username
-                const signalIdentifier = data.id || data.username;
-                signalsApi.getAll({ username: signalIdentifier }).then(sigRes => {
+                // Use userId if available, otherwise username
+                const fetchParams: { userId?: string, username?: string } = data.id ? { userId: data.id } : { username: data.username };
+                signalsApi.getAll(fetchParams).then(sigRes => {
                     if (sigRes.data) {
                         setFetchedSignals(sigRes.data)
                     }
@@ -120,8 +122,7 @@ export default function PublicProfile({ params }: { params: { username: string }
         avatarUrl = null
     } = (activeUser as any) || {}
 
-    const profileSignals = isOwnProfile ? signals.filter(s => s.username === effectiveUsername || s.userId === effectiveUsername) : fetchedSignals;
-    const userSignals = profileSignals;
+    const userSignals = fetchedSignals;
 
     const displayName = name || (effectiveUsername.length > 20 ? 'Starto Member' : effectiveUsername.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
     const displayRole = role || 'Member'
@@ -198,7 +199,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                             <p className="text-text-secondary font-medium flex items-center gap-2">
                                 {displayRole} • {displayCity.split(',')[0]}
                                 <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-                                <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border text-black">
+                                <span className="text-[10px] px-2.5 py-1 bg-surface-2 rounded-full uppercase tracking-widest font-bold border border-border text-black whitespace-nowrap">
                                     {displaySubscription} Account
                                 </span>
                                 {isOwnProfile && activeUser?.planExpiresAt && (
@@ -348,7 +349,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                 <p className="text-sm text-text-secondary leading-relaxed max-w-lg mb-6">{displayBio}</p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
-                                <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                                <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all whitespace-nowrap ${
                                     displaySubscription.toLowerCase() === 'pro' 
                                         ? 'bg-primary/5 text-primary border-primary/20 shadow-sm shadow-primary/10' 
                                         : 'bg-surface-2 text-text-muted border-border'
@@ -420,11 +421,15 @@ export default function PublicProfile({ params }: { params: { username: string }
                             ) : (
                                 <>
                                     {userSignals.filter(s => s.type !== 'SPACE').slice(0, showAllSignals ? undefined : 3).map(signal => (
-                                            <div key={signal.id} className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all">
+                                            <div 
+                                                key={signal.id} 
+                                                onClick={() => router.push(`/signals/${signal.id}`)}
+                                                className="cursor-pointer p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all"
+                                            >
                                                 <div className="flex justify-between items-start mb-4">
                                                     <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
                                                     <span className="text-[10px] font-bold text-text-muted">
-                                                        {signal.timeAgo || (signal.createdAt ? new Date(signal.createdAt).toLocaleDateString() : 'Recent')}
+                                                        {signal.createdAt ? new Date(signal.createdAt).toLocaleDateString() : 'Recent'}
                                                     </span>
                                                 </div>
                                                 <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{signal.title}</h3>
@@ -432,7 +437,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                                 <div className="mt-4 pt-4 border-t border-border flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
                                                     <span className="flex items-center gap-1.5">
                                                         <Zap className="w-3.5 h-3.5 text-primary" /> 
-                                                        {(signal.stats?.responses ?? (signal as any).responseCount ?? 0)} Responses
+                                                        {(signal.responseCount ?? 0)} Responses
                                                     </span>
                                                 </div>
                                             </div>
@@ -466,7 +471,11 @@ export default function PublicProfile({ params }: { params: { username: string }
                             ) : (
                                 <>
                                     {userSignals.filter(s => s.type === 'SPACE').map(space => (
-                                        <div key={space.id} className="p-6 bg-white rounded-3xl border border-border group hover:border-black transition-all shadow-sm">
+                                        <div 
+                                            key={space.id} 
+                                            onClick={() => router.push(`/signals/${space.id}`)}
+                                            className="cursor-pointer p-6 bg-white rounded-3xl border border-border group hover:border-black transition-all shadow-sm"
+                                        >
                                             <div className="flex justify-between items-start mb-4">
                                                 <span className="text-[10px] px-3 py-1 bg-surface-2 text-black border border-border rounded-full uppercase font-bold tracking-widest">
                                                     {(space as any).spaceType || 'Community Hub'}
@@ -489,6 +498,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                             <div className="pt-4 border-t border-border flex justify-between items-center">
                                                 <Link 
                                                     href={`/signals/${space.id}`}
+                                                    onClick={(e) => e.stopPropagation()}
                                                     className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary hover:underline"
                                                 >
                                                     View Hub Details →
@@ -497,6 +507,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                                     <Link 
                                                         href={formatURL((space as any).website)}
                                                         target="_blank"
+                                                        onClick={(e) => e.stopPropagation()}
                                                         className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted hover:text-black"
                                                     >
                                                         Website

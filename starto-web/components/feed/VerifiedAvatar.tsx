@@ -7,6 +7,7 @@ interface VerifiedAvatarProps {
     username: string
     avatarUrl?: string | null
     plan?: string | null
+    isVerified?: boolean
     size?: string
     badgeSize?: string
     className?: string
@@ -16,19 +17,21 @@ interface VerifiedAvatarProps {
 function isVerifiedPlan(plan?: string | null) {
     if (!plan) return false
     const p = plan.toLowerCase()
-    return p === 'pro' || p === 'founder' || p === 'premium'
+    // Explorer is the only free plan, all others are paid/verified
+    return p !== 'explorer' && p !== 'free'
 }
 
 export default function VerifiedAvatar({
     username,
     avatarUrl,
     plan,
+    isVerified: explicitVerified,
     size = 'w-10 h-10',
     badgeSize = 'w-4 h-4',
     className = '',
 }: VerifiedAvatarProps) {
     const [imageError, setImageError] = useState(false)
-    const verified = isVerifiedPlan(plan)
+    const verified = explicitVerified || isVerifiedPlan(plan)
     
     // Logic for Letter DP (Gmail style)
     const getInitials = (name: string) => {

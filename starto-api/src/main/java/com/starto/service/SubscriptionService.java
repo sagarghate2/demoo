@@ -146,6 +146,7 @@ public class SubscriptionService {
     // update user plan
     user.setPlan(planEnum);
     user.setPlanExpiresAt(subscription.getExpiresAt());
+    user.setPlanPurchasedAt(now);
     userRepository.saveAndFlush(user);
 
     // send payment receipt
@@ -223,11 +224,6 @@ public SubscriptionResponseDTO upgradePlan(User user, String newPlan) {
     Plan newPlanEnum = Plan.fromString(newPlan);
     Plan currentPlan = user.getPlan();
 
-    // same plan check
-    if (currentPlan == newPlanEnum) {
-        throw new RuntimeException("You are already on " + newPlan + " plan");
-    }
-
     // cant switch to free
     if (newPlanEnum == Plan.EXPLORER) {
         throw new RuntimeException("Cannot switch to free plan manually");
@@ -291,9 +287,9 @@ public SubscriptionResponseDTO upgradePlan(User user, String newPlan) {
         long daysLeft = user.getPlanExpiresAt() == null ? 0 : java.time.temporal.ChronoUnit.DAYS.between(now, user.getPlanExpiresAt());
 
         // Determine plan start date
-        OffsetDateTime planStart = user.getPlanExpiresAt() != null 
-            ? user.getPlanExpiresAt().minusDays(PlanConfig.PLAN_DURATION_DAYS.getOrDefault(plan, 30))
-            : user.getCreatedAt();
+        OffsetDateTime planStart = user.getPlanPurchasedAt() != null 
+            ? user.getPlanPurchasedAt() 
+            : (user.getCreatedAt() != null ? user.getCreatedAt() : now.minusDays(30));
 
         // Signal Usage (Active signals + spaces)
         int signalLimit = PlanConfig.MAX_SIGNALS.getOrDefault(plan, 0);
@@ -360,6 +356,7 @@ public void activateSubscriptionBySubscription(String subscriptionId, String pay
     User user = subscription.getUser();
     user.setPlan(planEnum);
     user.setPlanExpiresAt(subscription.getExpiresAt());
+    user.setPlanPurchasedAt(now);
     userRepository.save(user);
 
     emailService.sendPaymentSuccessEmail(

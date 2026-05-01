@@ -20,7 +20,7 @@ export default function SearchResultsPanel() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-border rounded-xl shadow-2xl overflow-hidden max-h-[480px] flex flex-col"
+                className="absolute top-0 left-0 right-0 z-50 bg-white border border-border rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.12)] overflow-hidden max-h-[600px] flex flex-col w-full border-primary/5"
             >
                 <div className="flex items-center justify-between p-3 border-b border-border bg-surface-2/50 backdrop-blur-sm">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Search Results</span>

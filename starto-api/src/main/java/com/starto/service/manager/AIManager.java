@@ -25,7 +25,9 @@ public class AIManager {
                 return aiService.validate(prompt);
             } catch (Exception geminiEx) {
                 System.out.println("Both AI services failed, returning default");
-                return "{\"marketDemandScore\": 5, \"competitors\": [], \"risks\": []}";
+                String oErr = openAiEx.getMessage() != null ? openAiEx.getMessage().replace("\"", "'").replace("\n", " ") : "Unknown";
+                String gErr = geminiEx.getMessage() != null ? geminiEx.getMessage().replace("\"", "'").replace("\n", " ") : "Unknown";
+                return "{\"marketDemand\":{\"score\":5,\"growthIndex\":\"N/A\",\"marketSaturation\":\"Unknown\",\"marketSummary\":\"OpenAI Error: " + oErr + " | Gemini Error: " + gErr + "\",\"drivers\":[],\"sources\":[]},\"competitors\":[],\"risks\":[]}";
             }
         }
     });

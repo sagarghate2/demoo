@@ -401,10 +401,10 @@ export default function SubscriptionPage() {
                                             </div>
                                             <button
                                                 onClick={() => handleUpgradeClick(plan.name)}
-                                                disabled={plan.name === 'Explorer' || subscription?.toUpperCase() === plan.id?.toUpperCase()}
-                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'bg-green-500 text-white' : plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-50`}
+                                                disabled={plan.name === 'Explorer'}
+                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20' : plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-50`}
                                             >
-                                                {subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'Current Program' : `Join Program`}
+                                                {subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'Renew Program' : `Join Program`}
                                             </button>
                                         </div>
                                     ))}
@@ -546,10 +546,10 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
 
             <button
                 onClick={() => onUpgrade(plan.name)}
-                disabled={plan.name === 'Explorer' || isActive}
-                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
+                disabled={plan.name === 'Explorer'}
+                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20 border-transparent' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
             >
-                {isActive ? 'Current Plan' : plan.name === 'Explorer' ? 'Always Free' : 'Choose Plan'}
+                {isActive ? 'Renew Plan' : plan.name === 'Explorer' ? 'Always Free' : 'Choose Plan'}
             </button>
         </motion.div>
     )

@@ -41,7 +41,8 @@ public class ExploreService {
 
     @Cacheable(
         value = "exploreCache",
-        key = "#request.location + '-' + #request.industry + '-' + #request.stage"
+        key = "#request.location + '-' + #request.industry + '-' + #request.stage",
+        unless = "#result == null || #result.marketDemand == null || 'N/A'.equals(#result.marketDemand.growthIndex)"
     )
     public ExploreResponse analyzeMarket(ExploreRequest request, String userId) {
         System.out.println("ANALYZE MARKET CALLED");

@@ -39,6 +39,9 @@ import java.util.Map;
 import java.util.UUID;
 import com.starto.exception.SignalLimitExceededException;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SignalService {
@@ -51,6 +54,7 @@ public class SignalService {
     private final PlanService planService;
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
+    private final NotificationService notificationService;
 
     private static boolean syncedResponseCounts = false;
 
@@ -61,19 +65,65 @@ public class SignalService {
 })
     @Transactional
     public Signal createSignal(Signal signal) {
+        log.info("[DEBUG] Entering createSignal method. Type: {}, Category: {}", signal.getType(), signal.getCategory());
         if (signal.getExpiresAt() == null) {
             signal.setExpiresAt(OffsetDateTime.now().plusDays(7));
         }
-        return signalRepository.save(signal);
+        Signal saved = signalRepository.save(signal);
+        log.info("[DEBUG] Signal saved to DB. ID: {}", saved.getId());
+        
+        // Broadcast instant_help alerts to ALL users
+        // Normalize strings for comparison (lowercase and remove spaces/underscores)
+        String type = saved.getType() != null ? saved.getType().toLowerCase().replace(" ", "").replace("_", "") : "";
+        String category = saved.getCategory() != null ? saved.getCategory().toLowerCase().replace(" ", "").replace("_", "") : "";
+        
+        boolean isInstantHelp = type.contains("instanthelp") || category.contains("instanthelp");
+        
+        log.info("[DEBUG] Checking broadcast. Type: '{}', Category: '{}', isInstantHelp: {}", type, category, isInstantHelp);
+        
+        if (isInstantHelp) {
+            List<User> allUsers = userRepository.findAll();
+            UUID creatorId = saved.getUser().getId();
+            log.info("[DEBUG] instant_help detected! Found {} users in DB. Creator: {}", allUsers.size(), creatorId);
+            
+            int notified = 0;
+            for (User u : allUsers) {
+                String uIdStr = u.getId().toString();
+                String cIdStr = creatorId.toString();
+                
+                if (!uIdStr.equals(cIdStr)) {
+                    try {
+                        log.info("[DEBUG] Attempting to notify user: {} ({})", u.getEmail(), uIdStr);
+                        notificationService.send(
+                            u.getId(), 
+                            "urgent_signal", 
+                            "🚨 Urgent: " + saved.getTitle(), 
+                            saved.getDescription(), 
+                            Map.of("signalId", saved.getId().toString())
+                        );
+                        notified++;
+                    } catch (Exception e) {
+                        log.error("[ERROR] Failed to notify user {}: {}", uIdStr, e.getMessage());
+                    }
+                } else {
+                    log.info("[DEBUG] Skipping creator: {}", cIdStr);
+                }
+            }
+            log.info("[DEBUG] Broadcast complete. Notified {} users.", notified);
+        } else {
+            log.info("[DEBUG] Not an instant_help signal. Skipping broadcast. Type: {}, Category: {}", saved.getType(), saved.getCategory());
+        }
+        
+        return saved;
     }
 
 
     public void validateSignalCreation(User user) {
         Plan plan = user.getPlan();
         
-        OffsetDateTime planStart = user.getPlanExpiresAt() != null 
-            ? user.getPlanExpiresAt().minusDays(com.starto.config.PlanConfig.PLAN_DURATION_DAYS.getOrDefault(plan, 30))
-            : user.getCreatedAt();
+        OffsetDateTime planStart = user.getPlanPurchasedAt() != null 
+            ? user.getPlanPurchasedAt() 
+            : (user.getCreatedAt() != null ? user.getCreatedAt() : OffsetDateTime.now().minusDays(30));
 
         long count = signalRepository.countByUserIdAndCreatedAtAfter(user.getId(), planStart) +
                      nearbySpaceRepository.countByUser_IdAndCreatedAtAfter(user.getId(), planStart);
@@ -142,6 +192,7 @@ public class SignalService {
                 .userId(s.getUser().getId())
                 .userPlan(s.getUser().getPlan().name())
                 .avatarUrl(s.getUser().getAvatarUrl())
+                .userIsVerified(s.getUser().getIsVerified())
                 .createdAt(s.getCreatedAt())
                 .viewCount(s.getViewCount() != null ? s.getViewCount() : 0)
                 .responseCount(s.getResponseCount() != null && s.getResponseCount() > 0 ? s.getResponseCount() : commentRepository.countBySignalId(s.getId()))
@@ -165,6 +216,7 @@ public class SignalService {
                 .userId(sp.getUser().getId())
                 .userPlan(sp.getUser().getPlan().name())
                 .avatarUrl(sp.getUser().getAvatarUrl())
+                .userIsVerified(sp.getUser().getIsVerified())
                 .createdAt(sp.getCreatedAt())
                 .spaceType(sp.getType())
                 .address(sp.getAddress())
@@ -203,6 +255,69 @@ public class SignalService {
 
     public List<Signal> getSignalsByUser(UUID userId) {
         return signalRepository.findByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UnifiedPostDTO> getUnifiedPostsByUser(UUID userId) {
+        List<UnifiedPostDTO> unifiedList = new java.util.ArrayList<>();
+        List<Signal> signals = signalRepository.findByUserId(userId);
+        List<NearbySpace> spaces = nearbySpaceRepository.findByUser_Id(userId);
+
+        for (Signal s : signals) {
+            unifiedList.add(UnifiedPostDTO.builder()
+                    .id(s.getId())
+                    .type(s.getType() != null ? s.getType() : "SIGNAL")
+                    .title(s.getTitle())
+                    .description(s.getDescription())
+                    .category(s.getCategory())
+                    .username(s.getUser().getUsername())
+                    .userId(s.getUser().getId())
+                    .userPlan(s.getUser().getPlan().name())
+                    .userRole(s.getUser().getRole())
+                    .avatarUrl(s.getUser().getAvatarUrl())
+                    .userIsVerified(s.getUser().getIsVerified())
+                    .createdAt(s.getCreatedAt())
+                    .viewCount(s.getViewCount() != null ? s.getViewCount() : 0)
+                    .responseCount(s.getResponseCount() != null && s.getResponseCount() > 0 ? s.getResponseCount() : commentRepository.countBySignalId(s.getId()))
+                    .offerCount(s.getOfferCount() != null ? s.getOfferCount() : 0)
+                    .city(s.getCity())
+                    .state(s.getState())
+                    .address(s.getAddress())
+                    .lat(s.getLat() != null ? s.getLat().doubleValue() : null)
+                    .lng(s.getLng() != null ? s.getLng().doubleValue() : null)
+                    .build());
+        }
+
+        for (NearbySpace sp : spaces) {
+            unifiedList.add(UnifiedPostDTO.builder()
+                    .id(sp.getId())
+                    .type("SPACE")
+                    .title(sp.getName())
+                    .description(sp.getDescription())
+                    .category(sp.getType())
+                    .username(sp.getUser().getUsername())
+                    .userId(sp.getUser().getId())
+                    .userPlan(sp.getUser().getPlan().name())
+                    .userRole(sp.getUser().getRole())
+                    .avatarUrl(sp.getUser().getAvatarUrl())
+                    .userIsVerified(sp.getUser().getIsVerified())
+                    .createdAt(sp.getCreatedAt())
+                    .spaceType(sp.getType())
+                    .address(sp.getAddress())
+                    .city(sp.getCity())
+                    .state(sp.getState())
+                    .contact(sp.getContact())
+                    .website(sp.getWebsite())
+                    .viewCount(sp.getViewCount() != null ? sp.getViewCount() : 0)
+                    .responseCount(sp.getResponseCount() != null && sp.getResponseCount() > 0 ? sp.getResponseCount() : commentRepository.countBySpaceId(sp.getId()))
+                    .offerCount(sp.getOfferCount() != null ? sp.getOfferCount() : 0)
+                    .lat(sp.getLat() != null ? sp.getLat().doubleValue() : null)
+                    .lng(sp.getLng() != null ? sp.getLng().doubleValue() : null)
+                    .build());
+        }
+
+        unifiedList.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        return unifiedList;
     }
 
     @Cacheable(value = "signalCache", key = "#id")
@@ -358,6 +473,7 @@ public List<Signal> getSignalsBySeeking(String seeking) {
 
         return candidates.stream()
                 .filter(signal -> signal.getLat() != null && signal.getLng() != null)
+                .filter(signal -> role == null || "all".equalsIgnoreCase(role) || role.equalsIgnoreCase(signal.getSeeking()))
                 .filter(signal -> haversineDistanceKm(lat, lng, signal.getLat().doubleValue(), signal.getLng().doubleValue()) <= radiusKm)
                 .toList();
     }
@@ -375,6 +491,7 @@ public List<Signal> getSignalsBySeeking(String seeking) {
 
         return candidates.stream()
                 .filter(space -> space.getLat() != null && space.getLng() != null)
+                .filter(space -> role == null || "all".equalsIgnoreCase(role) || role.equalsIgnoreCase(space.getUser().getRole()))
                 .filter(space -> haversineDistanceKm(lat, lng, space.getLat().doubleValue(), space.getLng().doubleValue()) <= radiusKm)
                 .toList();
     }
@@ -547,17 +664,30 @@ public List<com.starto.dto.NearbyUserDTO> getNearbyUsers(double lat, double lng,
 
     return candidates.stream()
     .filter((User u) -> u.getLat() != null && u.getLng() != null)
+    .filter((User u) -> role == null || "all".equalsIgnoreCase(role) || role.equalsIgnoreCase(u.getRole()))
     .filter((User u) -> haversineDistanceKm(
             lat, lng,
             u.getLat().doubleValue(),
             u.getLng().doubleValue()
     ) <= radiusKm)
-    .map((User u) -> new NearbyUserDTO(
-            u.getId(),
-            u.getUsername(),
-            u.getLat(),
-            u.getLng()
-    ))
+    .map((User u) -> {
+        NearbyUserDTO dto = new NearbyUserDTO();
+        dto.setId(u.getId());
+        dto.setUsername(u.getUsername());
+        dto.setName(u.getName());
+        dto.setRole(u.getRole());
+        dto.setCity(u.getCity());
+        dto.setCountry(u.getCountry());
+        dto.setBio(u.getBio());
+        dto.setIndustry(u.getIndustry());
+        dto.setSubIndustry(u.getSubIndustry());
+        dto.setLat(u.getLat());
+        dto.setLng(u.getLng());
+        dto.setAvatarUrl(u.getAvatarUrl());
+        dto.setSignalCount(u.getSignalCount() != null ? u.getSignalCount() : 0);
+        dto.setNetworkSize(u.getNetworkSize() != null ? u.getNetworkSize() : 0);
+        return dto;
+    })
     .collect(Collectors.toList());
     }
 

@@ -48,6 +48,7 @@ public class Notification {
 
     @Column(name = "is_read")
     @Builder.Default
+    @com.fasterxml.jackson.annotation.JsonProperty("isRead")
     private Boolean isRead = false;
 
     @CreationTimestamp

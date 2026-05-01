@@ -78,7 +78,9 @@ public class SignalController {
                             .user(user)
                             .build();
 
+                    System.out.println("[CRITICAL DEBUG] Controller received signal creation request. Type: " + dto.getType() + ", Category: " + dto.getCategory());
                     Signal saved = signalService.createSignal(signal);
+                    System.out.println("[CRITICAL DEBUG] Controller finished createSignal. Saved ID: " + saved.getId());
                     webSocketService.send("/topic/signals", saved);
                     return ResponseEntity.ok(saved);
                 })
@@ -121,10 +123,15 @@ public class SignalController {
 
     @GetMapping
     public ResponseEntity<?> getSignals(
+            @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String seeking,
             @RequestParam(required = false) String username,
             @RequestParam(defaultValue = "0") int page) {
+
+        if (userId != null) {
+            return ResponseEntity.ok(signalService.getUnifiedPostsByUser(userId));
+        }
 
         if (username != null && seeking != null) {
             return ResponseEntity.ok(signalService.getSignalsByUsernameAndSeeking(username, seeking));

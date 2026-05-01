@@ -146,6 +146,7 @@ public User createOrUpdateUser(String firebaseUid,
                         .address(address)
                         .username(finalUsername)
                         .plan(Plan.EXPLORER)
+                        .planPurchasedAt(OffsetDateTime.now())
                         .isOnline(true)
                         .lastSeen(OffsetDateTime.now())
                         .build();

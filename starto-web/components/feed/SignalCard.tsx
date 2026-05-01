@@ -64,6 +64,7 @@ interface SignalCardProps {
     }
     hideViews?: boolean
     userPlan?: string
+    userIsVerified?: boolean
     userId?: string
     createdAt?: number | string
     onRefresh?: () => void
@@ -80,7 +81,7 @@ interface SignalCardProps {
 
 export default function SignalCard({ 
     id, type = 'SIGNAL', title, username, timeAgo, category, description, strength, stats, 
-    hideViews = false, userPlan = 'free', userId, createdAt, onRefresh, avatarUrl,
+    hideViews = false, userPlan = 'free', userIsVerified, userId, createdAt, onRefresh, avatarUrl,
     address, stage, city, state, website, contact
 }: SignalCardProps) {
     const { user, token } = useAuthStore()
@@ -216,6 +217,7 @@ export default function SignalCard({
                         username={username}
                         avatarUrl={avatarUrl}
                         plan={userPlan}
+                        isVerified={userIsVerified}
                         size="w-10 h-10"
                         badgeSize="w-4 h-4"
                     />

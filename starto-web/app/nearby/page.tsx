@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Sidebar from '@/components/feed/Sidebar'
 import MobileBottomNav from '@/components/feed/MobileBottomNav'
-import { Map as MapIcon, Filter, Navigation, Search, Users, ChevronRight, MapPin, Loader2, Zap, LayoutGrid, Map as MapType, Radio, Building } from 'lucide-react'
+import { Map as MapIcon, Filter, Navigation, Search, Users, ChevronRight, ChevronDown, MapPin, Loader2, Zap, LayoutGrid, Map as MapType, Radio, Building } from 'lucide-react'
 import Image from 'next/image'
 import { useAuthStore } from '@/store/useAuthStore'
 import { usersApi, signalsApi, ApiUser, ApiSignal } from '@/lib/apiClient'
@@ -110,59 +110,75 @@ export default function NearbyEcosystem() {
                 <Sidebar />
 
                 <main className="flex-1 flex flex-col min-h-screen border-x border-border overflow-hidden">
-                    <header className="p-8 border-b border-border bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                    <header className="p-6 md:p-8 border-b border-border bg-white/80 backdrop-blur-xl sticky top-0 z-50">
                         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center">
-                            <div>
+                            <div className="flex-shrink-0">
                                 <h1 className="text-3xl font-display font-medium tracking-tight mb-1">Nearby Ecosystem</h1>
-                                <div className="flex items-center gap-2">
-                                    <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">
+                                <div className="flex items-center gap-3 h-6">
+                                    <p className="text-[10px] md:text-xs text-gray-500 uppercase tracking-widest font-bold whitespace-nowrap">
                                         Discover strategic partners within {radius}km
                                     </p>
-                                    {searchRole && (
-                                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full border border-primary/20 uppercase tracking-tighter">
-                                            Filtered: {searchRole}s
-                                        </span>
-                                    )}
+                                    <AnimatePresence mode="wait">
+                                        {searchRole && (
+                                            <motion.span 
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: -10 }}
+                                                className="px-2 py-1 bg-black text-white text-[9px] font-bold rounded-md uppercase tracking-widest flex items-center gap-1.5 shadow-sm flex-shrink-0"
+                                            >
+                                                <Filter className="w-2.5 h-2.5" />
+                                                {roles.find(r => r.id === searchRole)?.label || searchRole}
+                                            </motion.span>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
                             
-                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
                                 {/* View Toggle */}
-                                <div className="bg-surface-2 p-1 rounded-xl flex gap-1 mr-2 border border-border">
+                                <div className="bg-surface-2 p-1 rounded-xl flex gap-1 border border-border h-12 flex-shrink-0">
                                     <button 
                                         onClick={() => setViewMode('map')}
-                                        className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'map' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'map' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'}`}
                                     >
                                         <MapType className="w-4 h-4" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Map</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">Map</span>
                                     </button>
                                     <button 
                                         onClick={() => setViewMode('list')}
-                                        className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'}`}
                                     >
                                         <LayoutGrid className="w-4 h-4" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">List</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">List</span>
                                     </button>
                                 </div>
 
-                                <div className="w-full sm:w-64">
+                                <div className="flex-1 min-w-[180px] sm:w-64 flex-shrink-0">
                                     <CityAutocomplete 
                                         value={searchCity} 
                                         onChange={handleLocationChange} 
+                                        inputClassName="h-12 !py-0 shadow-sm"
                                     />
                                 </div>
-                                <select 
-                                    value={searchRole}
-                                    onChange={(e) => setSearchRole(e.target.value)}
-                                    className="bg-white border border-border rounded-lg px-4 py-3.5 text-sm focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
-                                >
-                                    {roles.map(r => (
-                                        <option key={r.id} value={r.id} className="bg-white">{r.label}</option>
-                                    ))}
-                                </select>
+                                
+                                <div className="relative h-12 flex-shrink-0 min-w-[140px]">
+                                    <select 
+                                        value={searchRole}
+                                        onChange={(e) => setSearchRole(e.target.value)}
+                                        className="appearance-none bg-white border border-border rounded-xl px-5 pr-10 h-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-black transition-all cursor-pointer shadow-sm w-full"
+                                    >
+                                        {roles.map(r => (
+                                            <option key={r.id} value={r.id} className="bg-white">{r.label.toUpperCase()}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
+
                                 <button 
                                     onClick={fetchNearby}
-                                    className="bg-primary text-white p-3.5 rounded-lg hover:bg-primary-dark transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                    className="bg-black text-white h-12 w-12 flex-shrink-0 flex items-center justify-center rounded-xl hover:bg-black/90 transition-all active:scale-95 shadow-lg shadow-black/20"
                                 >
                                     <Search className="w-5 h-5" />
                                 </button>

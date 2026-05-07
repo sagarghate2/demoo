@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn, Bell, Info } from 'lucide-react'
+import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn, Bell, Info, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
@@ -10,6 +10,8 @@ import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { signalsApi, notificationsApi } from '@/lib/apiClient'
 import VerifiedAvatar from './VerifiedAvatar'
+
+const ADMIN_EMAIL = "krishnamurthikm07@gmail.com";
 
 const navItems = [
     { icon: Home, label: 'Home Feed', href: '/feed' },
@@ -25,6 +27,12 @@ const navItems = [
 export default function Sidebar() {
     const pathname = usePathname()
     const { isAuthenticated, user } = useAuthStore()
+
+    const isAdmin = !!isAuthenticated && !!user && user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+    const displayNavItems = isAdmin 
+        ? [...navItems.slice(0, -1), { icon: ShieldCheck, label: 'Admin', href: '/admin' }, navItems[navItems.length - 1]]
+        : navItems;
     const { signals } = useSignalStore()
     const { connections, pendingRequests, offers } = useNetworkStore()
     const [totalSignalCount, setTotalSignalCount] = useState(0)
@@ -87,14 +95,14 @@ export default function Sidebar() {
                         <LogIn className="w-5 h-5" />
                     </div>
                     <div className="overflow-hidden">
-                        <h3 className="font-semibold text-sm text-primary">Login / Register</h3>
-                        <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mt-0.5">Enter Ecosystem</p>
+                        <h3 className="font-medium text-sm text-primary">Login / Register</h3>
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider font-medium mt-0.5">Enter Ecosystem</p>
                     </div>
                 </Link>
             )}
 
             <nav className="flex-1 space-y-1">
-                {navItems.map((item) => {
+                {displayNavItems.map((item) => {
                     const Icon = item.icon
                     const isActive = item.href === '/profile' 
                         ? pathname === '/profile' 
@@ -117,8 +125,8 @@ export default function Sidebar() {
                                 <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-black'}`} title="New requests or offers" />
                             )}
                             {item.label === 'Notifications' && unreadNotifCount > 0 && (
-                                <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white text-primary' : 'bg-accent-red text-white'}`}>
-                                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                                <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                                    {unreadNotifCount}
                                 </div>
                             )}
                         </Link>
@@ -145,13 +153,13 @@ export default function Sidebar() {
                 {/* Backend connection status */}
                 <div className={`mb-3 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${
                     backendStatus === 'live'
-                        ? 'text-green-600 bg-green-50'
+                        ? 'text-primary bg-surface-2'
                         : backendStatus === 'offline'
                         ? 'text-orange-500 bg-orange-50'
                         : 'text-text-muted bg-surface-2'
                 }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                        backendStatus === 'live' ? 'bg-green-500 animate-pulse'
+                        backendStatus === 'live' ? 'bg-primary animate-pulse'
                         : backendStatus === 'offline' ? 'bg-orange-400'
                         : 'bg-gray-400 animate-pulse'
                     }`} />

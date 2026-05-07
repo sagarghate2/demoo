@@ -15,7 +15,7 @@ module.exports = {
                 "text-primary": "#0A0A0A",
                 "text-secondary": "#6B6B6B",
                 "text-muted": "#9B9B9B",
-                "accent-green": "#22C55E",
+                "accent-green": "#0A0A0A",
                 "accent-yellow": "#EAB308",
                 "accent-blue": "#3B82F6",
                 "accent-red": "#EF4444",

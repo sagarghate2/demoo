@@ -45,4 +45,6 @@ List<User> findByLatBetweenAndLngBetween(
             String name
     );
 
+    List<User> findAllByOrderByCreatedAtDesc();
+
 }

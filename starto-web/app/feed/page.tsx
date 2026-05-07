@@ -142,11 +142,20 @@ export default function HomeFeed() {
         return () => { cancelled = true }
     }, [refreshKey])
 
-    // Fetch notifications
+    // Fetch notifications (last 7 days only)
     useEffect(() => {
         if (isAuthenticated) {
             notificationsApi.getAll().then(({ data }) => {
-                if (data) setNotifications(data.map(normalizeNotif))
+                if (data) {
+                    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                    const filtered = data
+                        .map(normalizeNotif)
+                        .filter(n => {
+                            const created = new Date(n.createdAt).getTime();
+                            return created >= sevenDaysAgo;
+                        });
+                    setNotifications(filtered);
+                }
             })
         }
     }, [isAuthenticated, refreshKey])
@@ -211,99 +220,7 @@ export default function HomeFeed() {
                                     )}
                                 </div>
                             </div>
-                            <div className="relative" ref={notifRef}>
-                                <button
-                                    onClick={() => setShowNotifDropdown(prev => !prev)}
-                                    title="Notifications"
-                                    className="p-2 border border-border rounded-full hover:bg-surface-2 transition-all shrink-0 bg-white relative"
-                                >
-                                    <Bell className="w-3.5 h-3.5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                                            {unreadCount > 9 ? '9+' : unreadCount}
-                                        </span>
-                                    )}
-                                </button>
 
-                                {showNotifDropdown && (
-                                    <div className="absolute right-0 top-full mt-2 w-[360px] bg-white border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
-                                        <div className="flex justify-between items-center px-4 py-3 border-b border-border">
-                                            <h4 className="text-xs font-bold uppercase tracking-widest">Notifications</h4>
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        const { error } = await notificationsApi.markAllAsRead()
-                                                        if (error) {
-                                                            toast.error("Failed to mark all as read")
-                                                        } else {
-                                                            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
-                                                            toast.success("All notifications marked as read")
-                                                        }
-                                                    } catch (err) {
-                                                        console.error(err)
-                                                        toast.error("An error occurred")
-                                                    }
-                                                }}
-                                                className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
-                                            >
-                                                Mark all read
-                                            </button>
-                                        </div>
-                                        <div className="max-h-[360px] overflow-y-auto">
-                                            {notifications.filter(n => !n.isRead).length === 0 ? (
-                                                <div className="p-8 text-center text-text-muted">
-                                                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                                    <p className="text-xs">No new notifications</p>
-                                                </div>
-                                            ) : (
-                                                notifications.filter(n => !n.isRead).slice(0, 10).map(notif => (
-                                                    <div
-                                                        key={notif.id}
-                                                        onClick={async () => {
-                                                            // Mark as read immediately on click
-                                                            await notificationsApi.markAsRead(notif.id)
-                                                            setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n))
-                                                            
-                                                            setShowNotifDropdown(false)
-                                                            if (notif.data?.signalId) {
-                                                                router.push(`/signals/${notif.data.signalId}`)
-                                                            } else {
-                                                                router.push('/notifications')
-                                                            }
-                                                        }}
-                                                        className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-surface-2 transition-all border-b border-border/50 bg-primary/5"
-                                                    >
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                                                            notif.type === 'urgent_signal' ? 'bg-red-100 text-red-500' : 'bg-primary/10 text-primary'
-                                                        }`}>
-                                                            <Bell className="w-3.5 h-3.5" />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-medium text-black leading-relaxed line-clamp-2">
-                                                                {notif.title}
-                                                            </p>
-                                                            <p className="text-[10px] text-text-muted mt-0.5">
-                                                                {notif.createdAt ? formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true }) : 'Just now'}
-                                                            </p>
-                                                        </div>
-                                                        {!notif.isRead && (
-                                                            <div className="w-2 h-2 bg-primary rounded-full shrink-0 mt-2" />
-                                                        )}
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                        <div className="border-t border-border px-4 py-2">
-                                            <button
-                                                onClick={() => { setShowNotifDropdown(false); router.push('/notifications') }}
-                                                className="text-xs font-bold text-primary hover:underline w-full text-center py-1 uppercase tracking-widest"
-                                            >
-                                                View All Notifications
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                             <button
                                 onClick={() => requireAuth(() => setIsSpaceModalOpen(true))}
                                 className="bg-white text-black border border-border px-4 py-2 rounded-full flex items-center gap-2 hover:bg-surface-2 transition-all shrink-0 shadow-sm"

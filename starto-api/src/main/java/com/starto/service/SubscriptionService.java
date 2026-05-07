@@ -33,6 +33,8 @@ import java.util.UUID;
 
 import java.time.OffsetDateTime;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class SubscriptionService {
@@ -365,5 +367,58 @@ public void activateSubscriptionBySubscription(String subscriptionId, String pay
     subscription.getAmountPaid(),
     subscriptionId
 );
+}
+
+@Transactional
+public void activateViaCoupon(User user, String plan, String couponCode) {
+    if (!"GOSTARTO".equals(couponCode)) {
+        throw new RuntimeException("Invalid coupon code");
+    }
+    
+    Plan planEnum = Plan.fromString(plan);
+    if (planEnum != Plan.PRO_PLUS) {
+        throw new RuntimeException("Coupon not applicable for this plan");
+    }
+
+    PlanEntity planEntity = planRepository.findByCode(planEnum)
+            .orElseThrow(() -> new RuntimeException("Plan not found"));
+
+    OffsetDateTime now = OffsetDateTime.now();
+    
+    // Create and save subscription record
+    Subscription subscription = Subscription.builder()
+            .user(user)
+            .plan(planEnum.name())
+            .amountPaid(0)
+            .status("ACTIVE")
+            .startsAt(now)
+            .expiresAt(now.plusDays(planEntity.getDurationDays()))
+            .createdAt(now)
+            .razorpayPaymentId("COUPON_" + couponCode + "_" + UUID.randomUUID().toString())
+            .build();
+    
+    subscriptionRepository.save(subscription);
+
+    // Update user plan
+    user.setPlan(planEnum);
+    user.setPlanExpiresAt(subscription.getExpiresAt());
+    user.setPlanPurchasedAt(now);
+    userRepository.save(user);
+    
+    // send welcome plan email
+    emailService.sendWelcomePlanEmail(user);
+
+    // in-app notification
+    notificationService.send(
+        user.getId(),
+        "PAYMENT_SUCCESS",
+        "Plan Activated!",
+        "Your " + planEnum.name() + " plan is now active via coupon.",
+        Map.of(
+            "plan", planEnum.name(),
+            "expiresAt", subscription.getExpiresAt().toString(),
+            "amountPaid", 0
+        )
+    );
 }
 }

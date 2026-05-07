@@ -58,7 +58,9 @@ export default function NetworkPage() {
     };
 
     // const { getAverageRating } = useRatingStore() // Removed to fix crash after API migration
-    const [tab, setTab] = useState<'connections' | 'requests' | 'offers'>('connections')
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const initialTab = (searchParams?.get('tab') as 'connections' | 'requests' | 'offers') || 'connections';
+    const [tab, setTab] = useState<'connections' | 'requests' | 'offers'>(initialTab)
     const [search, setSearch] = useState('')
 
     useEffect(() => {
@@ -67,6 +69,13 @@ export default function NetworkPage() {
             fetchOffers();
         }
     }, [isAuthenticated, fetchRequests, fetchOffers]);
+
+    useEffect(() => {
+        const t = searchParams?.get('tab');
+        if (t === 'offers' || t === 'requests' || t === 'connections') {
+            setTab(t);
+        }
+    }, [searchParams]);
 
     const connectionsArray = Array.isArray(connections) ? connections : []
     const pendingArray = Array.isArray(pendingRequests) ? pendingRequests : []

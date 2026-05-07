@@ -44,6 +44,7 @@ public class Notification {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
+    @com.fasterxml.jackson.annotation.JsonProperty("data")
     private Map<String, Object> data;
 
     @Column(name = "is_read")

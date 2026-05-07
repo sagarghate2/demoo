@@ -20,10 +20,19 @@ export default function NotificationsPage() {
     useEffect(() => {
         notificationsApi.getAll().then(({ data }) => {
             if (data) {
-                const unreadOnly = data
+                const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                const filtered = data
                     .map(normalizeNotif)
-                    .filter((n: any) => !n.isRead)
-                setNotifications(unreadOnly)
+                    .filter((n: any) => {
+                        const created = new Date(n.createdAt).getTime();
+                        return created >= sevenDaysAgo;
+                    })
+                    // Show unread first, then read, but only unread are shown by default?
+                    // Actually, the previous code filtered for !n.isRead.
+                    // The user said "notification section keep the last 7 days notifiation only".
+                    // They didn't say "only unread".
+                    // I'll show both read and unread from the last 7 days.
+                setNotifications(filtered)
             }
         })
     }, [])
@@ -33,21 +42,52 @@ export default function NotificationsPage() {
         if (error) {
             toast.error("Failed to mark all as read")
         } else {
-            setNotifications([]) // Clear immediately after marking all read
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))) // Mark as read but keep in list
             toast.success("All notifications marked as read")
         }
     }
 
     const handleNotificationClick = async (notif: any) => {
+        console.log("[Notifications Debug] Full Notification:", notif);
+        
         if (!notif.isRead) {
             await notificationsApi.markAsRead(notif.id)
-            setNotifications(prev => prev.filter(n => n.id !== notif.id)) // Remove immediately
+            setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n))
         }
 
-        if (notif.data?.signalId) {
-            router.push(`/signals/${notif.data.signalId}`)
-        } else if (notif.type === 'connection') {
-            router.push('/network')
+        // Parse data if it comes as a JSON string
+        let meta = notif.data;
+        if (typeof meta === 'string' && meta.trim().startsWith('{')) {
+            try { meta = JSON.parse(meta); } catch (e) {}
+        }
+
+        // UNIVERSAL ID FINDER: Check root object and meta object for any ID field (Signal or Space)
+        const targetId = notif.signalId || notif.postId || notif.targetId || notif.entityId || notif.spaceId ||
+                         meta?.signalId || meta?.postId || meta?.targetId || meta?.spaceId ||
+                         meta?.signal_id || meta?.post_id || meta?.entityId || meta?.id || meta?.space_id ||
+                         (typeof notif.data === 'string' && notif.data.length > 20 ? notif.data : null);
+
+        // 1. SPECIFIC REDIRECTIONS (Priority)
+        if (notif.type === 'offer' || meta?.offerId || notif.type?.includes('offer') || notif.type === 'NEW_OFFER' || notif.type === 'OFFER_ACCEPTED') {
+            toast.success("Opening Offers...")
+            router.push('/network?tab=offers')
+        } else if (notif.type?.includes('connection') || meta?.connectionId || notif.type === 'connection' || notif.type === 'CONNECTION_REQUEST' || notif.type === 'CONNECTION_ACCEPTED') {
+            toast.success("Opening Network...")
+            router.push('/network?tab=requests')
+        } else if (notif.type === 'PLAN_EXPIRY' || notif.type === 'PLAN_EXPIRED') {
+            toast.success("Opening Plans...")
+            router.push('/subscription')
+        } 
+        // 2. GENERIC SIGNAL REDIRECTION
+        else if (targetId) {
+            toast.success("Opening Signal...")
+            router.push(`/signals/${targetId}`)
+        } 
+        // 3. FALLBACK
+        else {
+            console.warn("[Notifications] Could not determine targetId for redirection:", notif);
+            toast.error("Old notification: Post details not available.")
+            router.push('/feed')
         }
     }
 

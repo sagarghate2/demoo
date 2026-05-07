@@ -209,7 +209,7 @@ export default function SignalCard({
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-border p-5 rounded-xl mb-4 hover:border-text-muted transition-all group shadow-sm hover:shadow-md"
+            className="bg-white border border-border p-5 rounded-xl mb-4 hover:border-text-muted transition-all group"
         >
             <div className="flex justify-between items-start mb-4">
                 <Link href={`/profile/${userId || username}`} className="flex items-center gap-3 group/profile hover:opacity-80 transition-opacity">
@@ -260,7 +260,7 @@ export default function SignalCard({
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute right-0 top-full mt-1 w-40 bg-white border border-border rounded-lg shadow-lg z-20 py-1 flex flex-col overflow-hidden"
+                                        className="absolute right-0 top-full mt-1 w-40 bg-white border border-border rounded-lg z-20 py-1 flex flex-col overflow-hidden"
                                     >
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setIsInsightsModalOpen(true); setShowDropdown(false); }}
@@ -345,14 +345,14 @@ export default function SignalCard({
                         transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
                         className={`h-full rounded-r-md transition-colors ${
                             daysLeft <= 1 ? "bg-red-500" :
-                            daysLeft >= totalDuration - 2 ? "bg-green-500" :
+                            daysLeft >= totalDuration - 2 ? "bg-primary" :
                             "bg-gradient-to-r from-yellow-400 to-orange-500"
                         }`}
                     />
                 </div>
                 <div className={`text-[10px] uppercase tracking-widest font-bold float-right ${
                     daysLeft <= 1 ? "text-red-500" :
-                    daysLeft >= totalDuration - 2 ? "text-green-600" :
+                    daysLeft >= totalDuration - 2 ? "text-primary" :
                     "text-orange-500"
                 }`}>
                     {daysLeft > 0 ? `${daysLeft} Days Left` : `${hoursLeft} Hours Left`}

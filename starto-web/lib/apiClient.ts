@@ -569,6 +569,13 @@ export const subscriptionApi = {
     /** GET /api/subscriptions/status — requires auth */
     getStatus: () =>
         apiFetch<any>('/api/subscriptions/status'),
+
+    /** POST /api/subscriptions/activate-coupon — requires auth */
+    activateCoupon: (plan: string, couponCode: string) =>
+        apiFetch<any>('/api/subscriptions/activate-coupon', {
+            method: 'POST',
+            body: JSON.stringify({ plan, couponCode }),
+        }),
 };
 
 // ─── Reviews API ─────────────────────────────────────────────────────────────
@@ -582,6 +589,27 @@ export const reviewsApi = {
         apiFetch<any[]>(`/api/reviews/${userId}`),
     getSummary: (userId: string) =>
         apiFetch<{ averageRating: number; totalReviews: number }>(`/api/reviews/${userId}/summary`)
+};
+
+// ─── Contact API ─────────────────────────────────────────────────────────────
+export const contactApi = {
+    /** POST /api/contact */
+    sendInquiry: (payload: { name: string; email: string; message: string }) =>
+        apiFetch<any>('/api/contact', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+};
+
+// ─── Admin API ───────────────────────────────────────────────────────────────
+export const adminApi = {
+    /** GET /api/admin/users — admin only */
+    getUsers: () =>
+        apiFetch<ApiUser[]>('/api/admin/users'),
+    
+    /** GET /api/admin/stats — admin only */
+    getStats: () =>
+        apiFetch<{ totalUsers: number }>('/api/admin/stats'),
 };
 
 export async function getAuthToken(): Promise<string | null> {

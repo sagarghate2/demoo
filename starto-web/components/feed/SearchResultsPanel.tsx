@@ -20,7 +20,7 @@ export default function SearchResultsPanel() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute top-0 left-0 right-0 z-50 bg-white border border-border rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.12)] overflow-hidden max-h-[600px] flex flex-col w-full border-primary/5"
+                className="absolute top-0 left-0 right-0 z-50 bg-white border border-border rounded-2xl shadow-none overflow-hidden max-h-[600px] flex flex-col w-full border-primary/10"
             >
                 <div className="flex items-center justify-between p-3 border-b border-border bg-surface-2/50 backdrop-blur-sm">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Search Results</span>
@@ -65,7 +65,7 @@ export default function SearchResultsPanel() {
                                                     )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-bold text-text-primary truncate">{profile.name}</p>
+                                                    <p className="text-sm font-medium font-body text-text-primary truncate">{profile.name}</p>
                                                     <p className="text-xs text-text-muted truncate lowercase group-hover:text-primary transition-colors">@{profile.username}</p>
                                                 </div>
                                                 {profile.role && (
@@ -92,7 +92,7 @@ export default function SearchResultsPanel() {
                                                 onClick={clearSearch}
                                             >
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <h4 className="text-sm font-bold group-hover/res:text-primary transition-colors">{signal.title}</h4>
+                                                    <h4 className="text-sm font-medium font-body group-hover/res:text-primary transition-colors">{signal.title}</h4>
                                                     <span className="text-[10px] text-text-muted uppercase font-bold tracking-widest">{signal.username}</span>
                                                 </div>
                                                 <p className="text-xs text-text-muted line-clamp-1">{signal.description}</p>

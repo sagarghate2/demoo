@@ -64,6 +64,9 @@ public class AuthController {
                 dto.getAddress()
         );
 
+        // Sync verification and send welcome email immediately if already verified (e.g. Social Auth)
+        userService.syncVerificationAndSendWelcome(user);
+
         return ResponseEntity.ok(user);
     }
 

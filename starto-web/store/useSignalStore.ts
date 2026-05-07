@@ -128,7 +128,7 @@ export function getSignalExpiration(signal: any) {
             daysLeft,
             hoursLeft,
             totalDuration,
-            progressPercent: signal.createdAt ? Math.min(100, Math.max(0, 100 - (timeLeftMs / (totalDuration * 24 * 60 * 60 * 1000)) * 100)) : 50
+            progressPercent: signal.createdAt ? Math.min(100, Math.max(0, (timeLeftMs / (totalDuration * 24 * 60 * 60 * 1000)) * 100)) : 50
         };
     }
 

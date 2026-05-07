@@ -41,7 +41,7 @@ export default function Toast({
                 >
                     <div className="bg-black/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border border-white/10 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            {type === 'success' && <CheckCircle2 className="w-5 h-5 text-green-400" />}
+                            {type === 'success' && <CheckCircle2 className="w-5 h-5 text-white" />}
                             {type === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
                             {type === 'info' && <Info className="w-5 h-5 text-blue-400" />}
                             <p className="text-sm font-medium tracking-wide">{message}</p>

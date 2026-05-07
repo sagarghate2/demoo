@@ -346,7 +346,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                             
 
                             {coords.lat && (
-                                <p className="text-[9px] text-green-600 mt-1 font-mono">GPS: {coords.lat.toFixed(4)}, {coords.lng?.toFixed(4)}</p>
+                                <p className="text-[9px] text-text-muted mt-1 font-mono">GPS: {coords.lat.toFixed(4)}, {coords.lng?.toFixed(4)}</p>
                             )}
                         </section>
 
@@ -434,7 +434,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     exit={{ opacity: 0 }}
                                     className={`flex items-center gap-2 p-3 rounded-lg text-xs font-medium ${
                                         toast.type === 'success'
-                                            ? 'bg-green-50 border border-green-200 text-green-700'
+                                            ? 'bg-surface-2 border border-border text-primary'
                                             : 'bg-orange-50 border border-orange-200 text-orange-700'
                                     }`}
                                 >

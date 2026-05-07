@@ -137,6 +137,7 @@ export default function SubscriptionPage() {
     const [confirmPlan, setConfirmPlan] = useState<string | null>(null)
     const [isUpgrading, setIsUpgrading] = useState(false)
     const [successPlan, setSuccessPlan] = useState<string | null>(null)
+    const [couponCode, setCouponCode] = useState('')
 
     const [backendPlans, setBackendPlans] = useState<any[]>([])
     const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
@@ -198,10 +199,47 @@ export default function SubscriptionPage() {
         setIsUpgrading(true)
         const addPayment = usePaymentStore.getState().addRecord
         const planDetails = mergedAllPlans.find(p => p.name === confirmPlan || p.id === confirmPlan)
+        const targetPlanId = planDetails?.id || confirmPlan;
 
         try {
+            // 0. Handle Coupon Flow
+            if (targetPlanId === 'PRO_PLUS' && couponCode.trim()) {
+                const { error: couponError } = await subscriptionApi.activateCoupon(targetPlanId, couponCode.trim());
+                
+                if (couponError) {
+                    setStatusModal({
+                        isOpen: true,
+                        type: 'error',
+                        title: 'Coupon Activation Failed',
+                        message: couponError || "Invalid or expired coupon code."
+                    })
+                    setIsUpgrading(false);
+                    return;
+                }
+
+                showToast("Pro Plus activated via coupon!");
+                updateUser({ plan: confirmPlan, subscription: confirmPlan });
+                addPayment({
+                    planName: confirmPlan,
+                    amount: 0,
+                    currency: '₹',
+                    dateTime: new Date().toLocaleString(),
+                    status: 'Successful (Coupon)'
+                });
+                setSuccessPlan(confirmPlan);
+                setConfirmPlan(null);
+                setCouponCode('');
+                
+                const { data: status } = await subscriptionApi.getStatus();
+                if (status) {
+                    updateUser({ plan: status.plan, planExpiresAt: status.expiresAt });
+                }
+                setIsUpgrading(false);
+                return;
+            }
+
             // 1. Create order on backend
-            const { data: orderData, error: orderError } = await subscriptionApi.createOrder(planDetails?.id || confirmPlan);
+            const { data: orderData, error: orderError } = await subscriptionApi.createOrder(targetPlanId);
             
             if (orderError || !orderData) {
                 setStatusModal({
@@ -312,10 +350,32 @@ export default function SubscriptionPage() {
                                 <span className="text-[10px] font-bold uppercase tracking-widest italic">The Unified Subscription Model</span>
                             </motion.div>
                             <h1 className="text-5xl lg:text-7xl font-display mb-6 tracking-tighter">Unified Growth<br />Ecosystem</h1>
-                            <p className="text-text-secondary max-w-2xl mx-auto text-lg leading-relaxed">
+                            <p className="text-text-secondary max-w-2xl mx-auto text-lg leading-relaxed mb-8">
                                 Subscription tiers that empower all—Talent, Founders, and Leaders.
                                 Unlock the tools to scale your vision in the Staro ecosystem.
                             </p>
+
+                            {/* Current Status Badge */}
+                            <div className="flex flex-wrap justify-center gap-4">
+                                <div className="px-6 py-3 bg-surface-2 rounded-2xl border border-border flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                                        <Users className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted leading-none mb-1">Current Role</p>
+                                        <p className="font-bold text-sm">{user?.role || 'Member'}</p>
+                                    </div>
+                                </div>
+                                <div className="px-6 py-3 bg-primary/5 rounded-2xl border border-primary/20 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                                        <Shield className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-primary leading-none mb-1">Active Plan</p>
+                                        <p className="font-bold text-sm">{subscription}</p>
+                                    </div>
+                                </div>
+                            </div>
                         </header>
 
                         {/* Success Banner */}
@@ -325,18 +385,18 @@ export default function SubscriptionPage() {
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
-                                    className="mb-12 p-6 bg-green-50/50 backdrop-blur-sm border border-green-200 rounded-3xl flex items-center justify-between shadow-sm"
+                                    className="mb-12 p-6 bg-surface-2 backdrop-blur-sm border border-border rounded-3xl flex items-center justify-between shadow-sm"
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center">
-                                            <BadgeCheck className="w-6 h-6 text-green-600" />
+                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                                            <BadgeCheck className="w-6 h-6 text-primary" />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-green-900 text-lg">Successfully Upgraded to {successPlan}!</p>
-                                            <p className="text-sm text-green-700">Your network visibility and premium toolkit are now active.</p>
+                                            <p className="font-bold text-primary text-lg">Successfully Upgraded to {successPlan}!</p>
+                                            <p className="text-sm text-text-secondary">Your network visibility and premium toolkit are now active.</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => setSuccessPlan(null)} className="text-green-400 hover:text-green-600 p-2">
+                                    <button onClick={() => setSuccessPlan(null)} className="text-text-muted hover:text-primary p-2">
                                         <X className="w-5 h-5" />
                                     </button>
                                 </motion.div>
@@ -464,6 +524,26 @@ export default function SubscriptionPage() {
                                 </div>
                             </div>
 
+                            {/* Coupon Input for Pro Plus */}
+                            {(confirmPlan === 'Pro Plus' || mergedAllPlans.find(p => p.name === confirmPlan)?.id === 'PRO_PLUS') && (
+                                <div className="mb-8 p-6 bg-primary/5 rounded-2xl border border-primary/20">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Sparkles className="w-4 h-4 text-primary" />
+                                        <span className="text-xs font-bold uppercase tracking-widest text-primary">Ecosystem Coupon</span>
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter coupon code" 
+                                        value={couponCode}
+                                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                        className="w-full bg-white border border-border px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                                    />
+                                    {couponCode === 'GOSTARTO' && (
+                                        <p className="text-[10px] text-accent-green font-bold mt-2 uppercase tracking-tight">✨ Valid Coupon Detected: Amount will be waived</p>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="flex gap-4">
                                 <button
                                     onClick={() => setConfirmPlan(null)}
@@ -547,7 +627,7 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
             <button
                 onClick={() => onUpgrade(plan.name)}
                 disabled={plan.name === 'Explorer'}
-                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20 border-transparent' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
+                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-primary text-white shadow-lg shadow-black/20 border-transparent' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
             >
                 {isActive ? 'Renew Plan' : plan.name === 'Explorer' ? 'Always Free' : 'Choose Plan'}
             </button>

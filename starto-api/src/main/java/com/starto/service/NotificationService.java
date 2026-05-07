@@ -36,6 +36,7 @@ public class NotificationService {
                 .isRead(false)
                 .build();
 
+        System.out.println("[Backend Debug] Sending Notification: Type=" + type + ", Data=" + data);
         Notification saved = notificationRepository.save(notification);
 
         // send real-time via WebSocket

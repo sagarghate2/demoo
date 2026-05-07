@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 
+import org.springframework.scheduling.annotation.Async;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -17,21 +19,23 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
-    private static final String FROM_EMAIL = "sagarghate164@gmail.com";
+    private static final String FROM_EMAIL = "startoindiaofficial@gmail.com";
 
     // COMMON METHOD
-    private void sendEmail(String to, String subject, String body) {
+    @Async("aiExecutor")
+    public void sendEmail(String to, String subject, String body) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(to);
-            helper.setFrom(FROM_EMAIL);
+            helper.setFrom("Starto Ecosystem <startoindiaofficial@gmail.com>");
             helper.setSubject(subject);
             helper.setText(body, true);
 
             mailSender.send(message);
-            log.info(" Email sent successfully to {}", to);
+            log.info("🚀 SUCCESS: Email sent to: [{}]", to);
+            System.out.println("🚀 SUCCESS: Email sent to: [" + to + "]");
 
         } catch (Exception e) {
             log.error(" EMAIL FAILED to {} | ERROR: {}", to, e.getMessage(), e);
@@ -55,7 +59,7 @@ public class EmailService {
                     <li>WhatsApp Unlock</li>
                     <li>AI Features</li>
                 </ul>
-                <a href="https://starto.in/upgrade"
+                <a href="https://starto.in/subscription"
                    style="background:#f97316;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">
                    Upgrade Now
                 </a>
@@ -151,7 +155,7 @@ public class EmailService {
                 <p>Hi <b>%s</b>,</p>
                 <p>Your <b>%s</b> plan expired.</p>
                 <p>Now on <b>EXPLORER</b> plan.</p>
-                <a href="https://starto.in/upgrade"
+                <a href="https://starto.in/subscription"
                    style="background:#ef4444;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">
                    Upgrade
                 </a>
@@ -164,11 +168,16 @@ public class EmailService {
     //  FEATURES 
     private String getPlanFeatures(String plan) {
         return switch (plan) {
-            case "SPRINT" -> "<ul><li>5 signals</li><li>20 offers</li><li>10 AI calls</li></ul>";
-            case "BOOST" -> "<ul><li>8 signals</li><li>Unlimited offers</li><li>15 AI calls</li></ul>";
-            case "PRO" -> "<ul><li>10 signals</li><li>Unlimited offers</li><li>20 AI calls</li></ul>";
-            case "PRO_PLUS" -> "<ul><li>Unlimited everything</li></ul>";
-            default -> "<ul><li>Basic features</li></ul>";
+            case "TRIAL" -> "<ul><li>5 Active Signals</li><li>10 Connection Offers</li><li>5 AI Analysis calls</li></ul>";
+            case "SPRINT" -> "<ul><li>5 Active Signals</li><li>20 Connection Offers</li><li>10 AI Analysis calls</li></ul>";
+            case "BOOST" -> "<ul><li>8 Active Signals</li><li>Unlimited Offers</li><li>15 AI Analysis calls</li></ul>";
+            case "PRO" -> "<ul><li>10 Active Signals</li><li>Unlimited Offers</li><li>20 AI Analysis calls</li></ul>";
+            case "PRO_PLUS" -> "<ul><li>Unlimited Signals</li><li>Unlimited Offers</li><li>30 AI Analysis calls</li></ul>";
+            case "GROWTH" -> "<ul><li>Unlimited Signals</li><li>Unlimited Offers</li><li>Unlimited AI Analysis</li></ul>";
+            case "ANNUAL" -> "<ul><li>Unlimited Everything</li><li>Legacy Profile Badge</li><li>Priority Support</li></ul>";
+            case "CAPTAIN" -> "<ul><li>10 Active Signals</li><li>Unlimited Offers</li><li>20 AI Analysis calls</li></ul>";
+            case "CAPTAIN_PRO" -> "<ul><li>Unlimited Signals</li><li>Unlimited Offers</li><li>Unlimited AI Analysis</li></ul>";
+            default -> "<ul><li>Basic Ecosystem Access</li><li>Networking Tools</li></ul>";
         };
     }
 
@@ -211,5 +220,25 @@ public class EmailService {
     """.formatted(user.getName());
 
     sendEmail(user.getEmail(), subject, body);
-}
+    }
+
+    public void sendContactEmail(String name, String fromEmail, String message) {
+        String subject = "New Contact Form Submission from " + name;
+        String body = """
+            <div style="font-family: Arial; max-width:600px; margin:auto; border:1px solid #eee; padding:20px; border-radius:10px;">
+                <h2 style="color:#0A0A0A; border-bottom:1px solid #eee; padding-bottom:10px;">New Contact Inquiry</h2>
+                <p><b>Name:</b> %s</p>
+                <p><b>Email:</b> %s</p>
+                <p><b>Message:</b></p>
+                <div style="background:#f9f9f9; padding:15px; border-radius:8px; border-left:4px solid #0A0A0A;">
+                    %s
+                </div>
+                <p style="margin-top:20px; font-size:12px; color:#666;">
+                    This message was sent from the Starto Contact Form.
+                </p>
+            </div>
+        """.formatted(name, fromEmail, message);
+
+        sendEmail("startoindiaofficial@gmail.com", subject, body);
+    }
 }

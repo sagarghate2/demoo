@@ -200,4 +200,27 @@ public ResponseEntity<?> getCurrentPlan(Authentication authentication) {
             .orElse(ResponseEntity.status(401).build());
 }
 
+@PostMapping("/activate-coupon")
+public ResponseEntity<?> activateCoupon(
+        Authentication authentication,
+        @RequestBody SubscriptionRequestDTO dto) {
+
+    if (authentication == null) return ResponseEntity.status(401).build();
+
+    if (dto.getPlan() == null || dto.getCouponCode() == null) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Missing fields"));
+    }
+
+    return userService.getUserByFirebaseUid(authentication.getPrincipal().toString())
+            .map(user -> {
+                try {
+                    subscriptionService.activateViaCoupon(user, dto.getPlan(), dto.getCouponCode());
+                    return ResponseEntity.ok(Map.of("message", "Plan activated successfully via coupon"));
+                } catch (RuntimeException ex) {
+                    return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+                }
+            })
+            .orElse(ResponseEntity.status(401).build());
+}
+
 }

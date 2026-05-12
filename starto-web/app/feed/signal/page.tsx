@@ -17,7 +17,7 @@ export default function SignalDetail() {
                     <article>
                         <div className="flex justify-between items-start mb-6">
                             <div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest bg-primary text-white px-3 py-1 rounded-full mb-4 inline-block">
+                                <span className="text-[10px] font-bold uppercase tracking-widest bg-primary text-background px-3 py-1 rounded-full mb-4 inline-block">
                                     Talent
                                 </span>
                                 <h1 className="text-3xl font-display mb-4">Need Full-stack Developer for AgriTech MVP</h1>
@@ -66,7 +66,7 @@ export default function SignalDetail() {
                                 placeholder="Explain why you are a good fit..."
                                 className="w-full bg-white p-4 rounded-md border border-border outline-none focus:border-primary text-sm h-32 resize-none mb-4"
                             />
-                            <button className="bg-primary text-white w-full py-4 rounded-md font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-90">
+                            <button className="bg-primary text-background w-full py-4 rounded-md font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-90">
                                 <Send className="w-4 h-4" /> Submit Help Offer
                             </button>
                         </section>
@@ -80,7 +80,7 @@ export default function SignalDetail() {
                         <p className="text-xs text-text-secondary mb-6">Founder at KrishiFast</p>
                         <div className="grid grid-cols-2 gap-2">
                             <button className="py-2 border border-border rounded-md text-xs font-bold uppercase">Profile</button>
-                            <button className="py-2 bg-primary text-white rounded-md text-xs font-bold uppercase">Connect</button>
+                            <button className="py-2 bg-primary text-background rounded-md text-xs font-bold uppercase">Connect</button>
                         </div>
                     </div>
                 </aside>

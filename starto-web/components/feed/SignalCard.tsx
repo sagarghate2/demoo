@@ -67,6 +67,7 @@ interface SignalCardProps {
     userIsVerified?: boolean
     userId?: string
     createdAt?: number | string
+    expiresAt?: string | number
     onRefresh?: () => void
     avatarUrl?: string | null
     
@@ -81,7 +82,7 @@ interface SignalCardProps {
 
 export default function SignalCard({ 
     id, type = 'SIGNAL', title, username, timeAgo, category, description, strength, stats, 
-    hideViews = false, userPlan = 'free', userIsVerified, userId, createdAt, onRefresh, avatarUrl,
+    hideViews = false, userPlan = 'free', userIsVerified, userId, createdAt, expiresAt, onRefresh, avatarUrl,
     address, stage, city, state, website, contact
 }: SignalCardProps) {
     const { user, token } = useAuthStore()
@@ -182,7 +183,8 @@ export default function SignalCard({
             stats: stats || { responses: 0, offers: 0, views: 0 },
             userPlan,
             userId: userId || storeSignal?.userId,
-            createdAt: typeof createdAt === 'string' ? new Date(createdAt).getTime() : createdAt
+            createdAt: typeof createdAt === 'string' ? new Date(createdAt).getTime() : createdAt,
+            expiresAt: expiresAt
         } as Signal),
         comments: (storeSignal?.comments && storeSignal.comments.length > 0) ? storeSignal.comments : localComments
     }
@@ -209,7 +211,7 @@ export default function SignalCard({
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-border p-5 rounded-xl mb-4 hover:border-text-muted transition-all group"
+            className="bg-surface border border-border p-5 rounded-xl mb-4 hover:border-text-muted transition-all group"
         >
             <div className="flex justify-between items-start mb-4">
                 <Link href={`/profile/${userId || username}`} className="flex items-center gap-3 group/profile hover:opacity-80 transition-opacity">
@@ -237,7 +239,7 @@ export default function SignalCard({
                     </div>
                 </Link>
                 <div className="flex items-center gap-2">
-                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${type === 'SPACE' ? 'bg-black text-white' : 'bg-primary text-white'}`}>
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-primary text-background`}>
                         {type === 'SPACE' ? (strength || 'Space') : category}
                     </span>
                     {stage && (
@@ -260,17 +262,17 @@ export default function SignalCard({
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                         transition={{ duration: 0.15 }}
-                                        className="absolute right-0 top-full mt-1 w-40 bg-white border border-border rounded-lg z-20 py-1 flex flex-col overflow-hidden"
+                                        className="absolute right-0 top-full mt-1 w-40 bg-surface border border-border rounded-lg z-20 py-1 flex flex-col overflow-hidden"
                                     >
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setIsInsightsModalOpen(true); setShowDropdown(false); }}
-                                            className="px-4 py-2.5 text-sm text-left hover:bg-surface-2 transition-colors w-full flex items-center gap-2 text-text-secondary hover:text-black font-medium"
+                                            className="px-4 py-2.5 text-sm text-left hover:bg-surface-2 transition-colors w-full flex items-center gap-2 text-text-secondary hover:text-text-primary font-medium"
                                         >
                                             <BarChart2 className="w-4 h-4" /> Insights
                                         </button>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setIsEditModalOpen(true); setShowDropdown(false); }}
-                                            className="px-4 py-2.5 text-sm text-left hover:bg-surface-2 transition-colors w-full flex items-center gap-2 text-text-secondary hover:text-black font-medium"
+                                            className="px-4 py-2.5 text-sm text-left hover:bg-surface-2 transition-colors w-full flex items-center gap-2 text-text-secondary hover:text-text-primary font-medium"
                                         >
                                             <Edit3 className="w-4 h-4" /> Modify Signal
                                         </button>
@@ -281,7 +283,7 @@ export default function SignalCard({
                                                 setIsDeleteConfirmOpen(true);
                                                 setShowDropdown(false);
                                             }}
-                                            className="px-4 py-2.5 text-sm text-left hover:bg-red-50 transition-colors w-full flex items-center gap-2 text-accent-red font-medium disabled:opacity-50"
+                                            className="px-4 py-2.5 text-sm text-left hover:bg-surface-2 transition-colors w-full flex items-center gap-2 text-text-secondary hover:text-text-primary font-medium disabled:opacity-50"
                                         >
                                             <Trash2 className="w-4 h-4" /> {isDeleting ? 'Deleting...' : 'Delete Signal'}
                                         </button>
@@ -372,7 +374,7 @@ export default function SignalCard({
                         />
                     </div>
                     <p className="text-[11px] text-text-secondary">
-                        Responded by <span className="font-bold text-black border-b border-black/20">{respondentToShow === currentUser ? 'you' : `@${respondentToShow}`}</span>
+                        Responded by <span className="font-bold text-text-primary border-b border-border">{respondentToShow === currentUser ? 'you' : `@${respondentToShow}`}</span>
                         {localStats.responses > 1 && ` and ${localStats.responses - 1} others`}
                     </p>
                 </div>
@@ -382,15 +384,15 @@ export default function SignalCard({
 
             <div className="flex gap-2">
                 {(!isOwner && type !== 'SPACE') && (
-                    <button onClick={() => setIsHelpModalOpen(true)} className="flex-1 bg-primary text-white py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all">
-                        <Zap className="w-4 h-4 fill-white" /> Help
+                    <button onClick={() => setIsHelpModalOpen(true)} className="flex-1 bg-primary text-background py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all">
+                        <Zap className="w-4 h-4 fill-current" /> Help
                     </button>
                 )}
                 <button
                     onClick={() => setShowComments(!showComments)}
                     className={`flex-1 border py-2.5 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                         showComments
-                            ? 'border-black bg-black text-white'
+                            ? 'border-primary bg-primary text-background'
                             : 'border-border hover:bg-surface-2'
                     }`}
                 >
@@ -457,9 +459,9 @@ export default function SignalCard({
                         disabled={alreadyConnected || alreadyPending || addedToNetwork}
                         className={`px-3 border rounded-md transition-all duration-300 ${
                             alreadyConnected
-                                ? 'bg-black text-white'
+                                ? 'bg-primary text-background'
                                 : alreadyPending || addedToNetwork
-                                    ? 'bg-black text-white shadow-md'
+                                    ? 'bg-primary text-background shadow-md'
                                     : 'border-border hover:bg-surface-2'
                         }`}
                         title={alreadyConnected ? 'Connected' : alreadyPending ? 'Request sent — pending' : 'Send connection request'}

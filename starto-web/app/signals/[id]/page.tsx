@@ -160,7 +160,7 @@ export default function SignalDetailPage() {
                     <p className="text-text-muted mb-6">This signal may have expired or was removed from the ecosystem.</p>
                     <button 
                         onClick={() => router.push('/feed')}
-                        className="bg-primary text-white px-6 py-2 rounded-md font-medium"
+                        className="bg-primary text-background px-6 py-2 rounded-md font-medium"
                     >
                         Back to Feed
                     </button>
@@ -217,7 +217,7 @@ export default function SignalDetailPage() {
                             {/* Header Section */}
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-primary text-white px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-primary text-background px-2 py-0.5 rounded-full">
                                         {signal.type === 'SPACE' ? (signal.spaceType || 'Ecosystem Node') : (signal.category || 'General')}
                                     </span>
                                     {signal.stage && (
@@ -447,7 +447,7 @@ export default function SignalDetailPage() {
                         {/* Sidebar Information */}
                         <div className="space-y-6">
                             {/* Owner Card */}
-                            <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm sticky top-8">
+                            <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm sticky top-8">
                                 <div className="h-4 bg-primary relative" />
                                 <div className="px-6 pb-6 pt-4 space-y-4">
                                     <div className="flex items-center gap-4">
@@ -505,10 +505,10 @@ export default function SignalDetailPage() {
                                                 }}
                                                 className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                                                     alreadyConnected 
-                                                        ? 'bg-green-50 text-green-600 border border-green-200' 
+                                                        ? 'bg-surface-2 text-text-primary border border-border' 
                                                         : alreadyPending
                                                         ? 'bg-surface-2 text-text-muted border border-border cursor-not-allowed'
-                                                        : 'bg-black text-white hover:bg-primary'
+                                                        : 'bg-primary text-background hover:opacity-90'
                                                 }`}
                                             >
                                                 {alreadyConnected ? (
@@ -525,8 +525,8 @@ export default function SignalDetailPage() {
                             </div>
 
                             {/* Help Actions Sticky Bar (Mobile only) */}
-                            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-border flex gap-3 lg:hidden z-40">
-                                <button className="flex-1 bg-primary text-white py-4 rounded-xl font-bold text-sm shadow-lg shadow-primary/20">
+                            <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border flex gap-3 lg:hidden z-40">
+                                <button className="flex-1 bg-primary text-background py-4 rounded-xl font-bold text-sm shadow-lg shadow-primary/20">
                                     I Can Help
                                 </button>
                                 <button className="flex-1 bg-black text-white py-4 rounded-xl font-bold text-sm">

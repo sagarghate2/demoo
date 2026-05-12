@@ -3,26 +3,45 @@
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useAuthStore } from '@/store/useAuthStore'
 import { Briefcase, ArrowLeft, Twitter, Linkedin, Github, Mail, Heart, Zap } from 'lucide-react'
 
 export default function CareersPage() {
+    const { isAuthenticated, user } = useAuthStore();
     return (
         <div className="min-h-screen bg-background text-primary selection:bg-black selection:text-white">
             
             {/* Navigation */}
-            <nav className="fixed top-0 w-full z-50 px-6 md:px-12 py-8 flex justify-between items-center bg-background/80 backdrop-blur-md border-b border-black/5">
-                <Link href="/">
-                    <Image src="/about-logo.png" alt="Starto Logo" width={32} height={32} className="w-8 h-8 invert" />
+            <nav className="fixed top-0 left-0 right-0 z-[100] px-10 h-[72px] flex items-center justify-between bg-background/80 backdrop-blur-[20px] border-b border-border transition-all duration-300">
+                <Link href="/" className="flex items-center gap-[10px] no-underline">
+                    <img src="/about-logo.png" alt="Starto Logo" className="h-[40px] w-auto block" />
                 </Link>
-                <div className="flex items-center gap-10">
-                    <div className="hidden md:flex gap-10 text-[11px] font-bold tracking-widest uppercase">
-                        <Link href="/about" className="hover:opacity-60 transition-opacity">ABOUT</Link>
-                        <Link href="/careers" className="border-b-2 border-black pb-1">CAREERS</Link>
-                        <Link href="/auth" className="opacity-40 hover:opacity-100 transition-opacity">LOGIN</Link>
-                    </div>
-                    <Link href="/auth" className="bg-black text-white px-8 py-3 rounded-full text-[11px] font-bold tracking-widest uppercase hover:bg-black/80 transition-all">
-                        GET STARTED
-                    </Link>
+                <ul className="hidden md:flex items-center gap-[36px] list-none m-0 p-0">
+                    <li><Link href="/about" className="text-[11px] font-bold uppercase tracking-[2px] text-text-secondary hover:text-primary transition-all">About</Link></li>
+                    <li><Link href="/feed" className="text-[11px] font-bold uppercase tracking-[2px] text-text-secondary hover:text-primary transition-all">Platform</Link></li>
+                    <li><Link href="/subscription" className="text-[11px] font-bold uppercase tracking-[2px] text-text-secondary hover:text-primary transition-all">Pricing</Link></li>
+                    <li><Link href="/careers" className="text-[11px] font-bold uppercase tracking-[2px] text-primary transition-all border-b-2 border-black pb-1">Careers</Link></li>
+                </ul>
+                <div className="flex items-center gap-5">
+                    {isAuthenticated && user ? (
+                        <Link href="/profile" className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1px] text-text-secondary hover:text-primary transition-all">
+                            {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.name || 'User'} className="w-6 h-6 rounded-full" />
+                            ) : (
+                                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-primary">
+                                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                                </div>
+                            )}
+                            <span>{user.name || user.username}</span>
+                        </Link>
+                    ) : (
+                        <>
+                            <Link href="/auth" className="text-[11px] font-bold uppercase tracking-[2px] text-text-secondary hover:text-primary transition-all">Sign In</Link>
+                            <Link href="/auth" className="bg-black text-white px-5 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-[1px] hover:bg-black/80 transition-all">
+                                Get Started →
+                            </Link>
+                        </>
+                    )}
                 </div>
             </nav>
 

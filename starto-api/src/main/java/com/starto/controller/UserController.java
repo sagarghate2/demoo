@@ -77,8 +77,10 @@ public class UserController {
 
 // edit the user profile
     @PutMapping("/profile")
-    public ResponseEntity<User> updateProfile(@AuthenticationPrincipal String firebaseUid,
+    public ResponseEntity<User> updateProfile(Authentication authentication,
             @RequestBody ProfileUpdateDTO updates) {
+        if (authentication == null) return ResponseEntity.status(401).build();
+        String firebaseUid = authentication.getPrincipal().toString();
         return userService.getUserByFirebaseUid(firebaseUid)
                 .map(user -> {
                     if (updates.getName() != null) user.setName(updates.getName());
@@ -235,4 +237,15 @@ public ResponseEntity<?> getPlanStatus(Authentication authentication) {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/me")
+    public ResponseEntity<?> deleteAccount(Authentication authentication) {
+        if (authentication == null) return ResponseEntity.status(401).build();
+
+        return userService.getUserByFirebaseUid(authentication.getPrincipal().toString())
+                .map(user -> {
+                    userService.deleteAccount(user);
+                    return ResponseEntity.ok().build();
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
 }

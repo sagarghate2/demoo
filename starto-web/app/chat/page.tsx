@@ -61,7 +61,7 @@ export default function ChatPage() {
 
                             <div className="flex gap-4 flex-row-reverse">
                                 <div className="w-8 h-8 bg-primary rounded-full shrink-0" />
-                                <div className="bg-primary text-white p-4 rounded-xl rounded-tr-none max-w-[70%]">
+                                <div className="bg-primary text-background p-4 rounded-xl rounded-tr-none max-w-[70%]">
                                     <p className="text-sm">Yes! We are running on RDS and seeing 100% CPU usage. Can you jump on a call?</p>
                                 </div>
                             </div>
@@ -72,7 +72,7 @@ export default function ChatPage() {
                                 <button className="p-2 text-text-muted hover:text-primary"><Paperclip className="w-5 h-5" /></button>
                                 <input type="text" placeholder="Type a message..." className="flex-1 bg-transparent outline-none text-sm" />
                                 <button className="p-2 text-text-muted hover:text-primary"><Image className="w-5 h-5" /></button>
-                                <button className="bg-primary text-white p-2 rounded-md hover:opacity-90"><Send className="w-4 h-4" /></button>
+                                <button className="bg-primary text-background p-2 rounded-md hover:opacity-90"><Send className="w-4 h-4" /></button>
                             </div>
                         </footer>
                     </section>

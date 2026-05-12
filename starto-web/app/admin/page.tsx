@@ -150,6 +150,22 @@ export default function AdminDashboard() {
                         </div>
                     </header>
 
+                    {/* Tabs */}
+                    <div className="flex gap-2 mb-6">
+                        <button
+                            onClick={() => router.push('/admin')}
+                            className="px-6 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-full"
+                        >
+                            Ecosystem Users
+                        </button>
+                        <button
+                            onClick={() => router.push('/admin/promo-codes')}
+                            className="px-6 py-2 bg-white border border-border text-black text-xs font-bold uppercase tracking-widest rounded-full hover:bg-gray-50 transition-colors"
+                        >
+                            Promo Codes
+                        </button>
+                    </div>
+
                     {/* Users Table */}
                     <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">

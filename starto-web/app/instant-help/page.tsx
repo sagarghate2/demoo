@@ -57,7 +57,7 @@ export default function InstantHelp() {
                     </header>
 
                     <div className="flex bg-white border border-border rounded-xl overflow-hidden mb-12">
-                        <button className="flex-1 py-4 text-sm font-bold uppercase tracking-widest bg-primary text-white">Need Help</button>
+                        <button className="flex-1 py-4 text-sm font-bold uppercase tracking-widest bg-primary text-background">Need Help</button>
                         <button className="flex-1 py-4 text-sm font-bold uppercase tracking-widest text-text-muted hover:bg-surface-2 transition-all">Can Help</button>
                     </div>
 
@@ -105,7 +105,7 @@ export default function InstantHelp() {
                                         <h4 className="font-medium mb-1">AWS DB Outage - Need RDS Expert</h4>
                                         <p className="text-xs text-text-secondary">Indiranagar • Within 10km</p>
                                     </div>
-                                    <button className="p-4 bg-primary text-white rounded-full hover:scale-105 transition-transform">
+                                    <button className="p-4 bg-primary text-background rounded-full hover:scale-105 transition-transform">
                                         <ArrowRight className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -119,11 +119,11 @@ export default function InstantHelp() {
                         <h4 className="font-display mb-4">How it works</h4>
                         <div className="space-y-4">
                             <div className="flex gap-3">
-                                <div className="w-6 h-6 bg-primary text-white text-[10px] flex items-center justify-center rounded-full shrink-0 font-bold">1</div>
+                                <div className="w-6 h-6 bg-primary text-background text-[10px] flex items-center justify-center rounded-full shrink-0 font-bold">1</div>
                                 <p className="text-xs text-text-secondary leading-relaxed">Urgent signals bypass the regular feed and are sent as push notifications.</p>
                             </div>
                             <div className="flex gap-3">
-                                <div className="w-6 h-6 bg-primary text-white text-[10px] flex items-center justify-center rounded-full shrink-0 font-bold">2</div>
+                                <div className="w-6 h-6 bg-primary text-background text-[10px] flex items-center justify-center rounded-full shrink-0 font-bold">2</div>
                                 <p className="text-xs text-text-secondary leading-relaxed">Verified online users in your city receive an immediate ping.</p>
                             </div>
                         </div>

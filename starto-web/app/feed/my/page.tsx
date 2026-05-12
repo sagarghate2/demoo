@@ -70,6 +70,7 @@ export default function MySignals() {
         status: s.status === 'open' ? 'Active' : 'Closed',
         stats: { responses: s.responseCount ?? 0, offers: s.offerCount ?? 0, views: s.viewCount ?? 0 },
         createdAt: s.createdAt,
+        expiresAt: s.expiresAt,
         strength: s.signalStrength || '7 Days',
         source: 'backend' as const,
         type: 'SIGNAL'
@@ -132,12 +133,12 @@ export default function MySignals() {
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setRefreshKey(k => k + 1)}
-                                className="p-2 border border-border rounded-full hover:bg-surface-2 transition-all bg-white"
+                                className="p-2 border border-border rounded-full hover:bg-surface-2 transition-all bg-surface"
                                 title="Refresh"
                             >
                                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                             </button>
-                            <button onClick={() => setIsRaiseModalOpen(true)} className="bg-primary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:opacity-90">
+                            <button onClick={() => setIsRaiseModalOpen(true)} className="bg-primary text-background px-4 py-2 rounded-md flex items-center gap-2 hover:opacity-90">
                                 <Plus className="w-5 h-5" /> New Signal
                             </button>
                         </div>
@@ -146,7 +147,7 @@ export default function MySignals() {
                     <div className="flex gap-2 mb-8 items-center flex-wrap">
                         <button
                             onClick={() => setActiveFilter(null)}
-                            className={`px-4 py-2 border rounded-md text-sm font-medium transition-all ${!activeFilter ? 'bg-primary text-white border-primary' : 'bg-white border-border text-text-secondary hover:bg-surface-2'}`}
+                            className={`px-4 py-2 border rounded-md text-sm font-medium transition-all ${!activeFilter ? 'bg-primary text-background border-primary' : 'bg-surface border-border text-text-secondary hover:bg-surface-2'}`}
                         >
                             All
                         </button>
@@ -154,7 +155,7 @@ export default function MySignals() {
                             <button
                                 key={cat}
                                 onClick={() => setActiveFilter(cat)}
-                                className={`px-4 py-2 border rounded-md text-sm font-medium transition-all ${activeFilter === cat ? 'bg-primary text-white border-primary' : 'bg-white border-border text-text-secondary hover:bg-surface-2'}`}
+                                className={`px-4 py-2 border rounded-md text-sm font-medium transition-all ${activeFilter === cat ? 'bg-primary text-background border-primary' : 'bg-surface border-border text-text-secondary hover:bg-surface-2'}`}
                             >
                                 {cat}
                             </button>
@@ -180,7 +181,7 @@ export default function MySignals() {
                                 ) : (
                                     <div className="space-y-4">
                                         {mySignals.map(signal => (
-                                            <div key={signal.id} className="bg-white border border-border p-5 rounded-xl transition-all hover:shadow-sm">
+                                            <div key={signal.id} className="bg-surface border border-border p-5 rounded-xl transition-all hover:shadow-sm">
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${signal.status === 'Active' ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-blue/10 text-accent-blue'}`}>
@@ -247,7 +248,7 @@ export default function MySignals() {
                                 ) : (
                                     <div className="space-y-4">
                                         {mySpaces.map(space => (
-                                            <div key={space.id} className="bg-white border border-border p-5 rounded-2xl transition-all hover:shadow-sm">
+                                            <div key={space.id} className="bg-surface border border-border p-5 rounded-2xl transition-all hover:shadow-sm">
                                                 <div className="flex justify-between items-start mb-4">
                                                     <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-surface-2 rounded-full border border-border">
                                                         {space.category}
@@ -296,7 +297,7 @@ export default function MySignals() {
                 </main>
 
                 <aside className="hidden lg:block w-[320px] p-8 space-y-6">
-                    <div className="bg-primary text-white p-6 rounded-xl relative overflow-hidden">
+                    <div className="bg-primary text-background p-6 rounded-xl relative overflow-hidden">
                         <div className="relative z-10">
                             <h3 className="font-display text-lg mb-2">Signal Insights</h3>
                             {(() => {
@@ -313,7 +314,7 @@ export default function MySignals() {
                                 
                                 return (
                                     <>
-                                        <p className="text-white/60 text-xs mb-6">
+                                        <p className="text-background/60 text-xs mb-6">
                                             {efficiency > 80 
                                                 ? `Your signals are outperforming ${efficiency - 5}% of users in Bangalore.` 
                                                 : efficiency > 0 
@@ -323,7 +324,7 @@ export default function MySignals() {
                                         </p>
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-end">
-                                                <span className="text-xs uppercase tracking-widest text-white/40">Efficiency</span>
+                                                <span className="text-xs uppercase tracking-widest text-background/40">Efficiency</span>
                                                 <span className="text-2xl font-mono">{efficiency}%</span>
                                             </div>
                                             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
@@ -340,7 +341,7 @@ export default function MySignals() {
                         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
                     </div>
 
-                    <div className="bg-white border border-border border-dashed p-6 rounded-xl shadow-sm relative overflow-hidden group">
+                    <div className="bg-surface border border-border border-dashed p-6 rounded-xl shadow-sm relative overflow-hidden group">
                         <div className="absolute top-3 right-3">
                             <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
                                 Coming Soon

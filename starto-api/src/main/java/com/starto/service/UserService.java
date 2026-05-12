@@ -12,9 +12,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.math.BigDecimal;
 import com.starto.service.NotificationService;
+import com.starto.service.EmailService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.UserRecord;
-import com.starto.service.EmailService;
+import com.starto.repository.SignalRepository;
+import com.starto.repository.OfferRepository;
+import com.starto.repository.CommentRepository;
+import com.starto.repository.SignalViewRepository;
+import com.starto.repository.NearbySpaceRepository;
+import com.starto.repository.ConnectionRepository;
+import com.starto.model.Signal;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +32,12 @@ public class UserService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final SignalRepository signalRepository;
+    private final OfferRepository offerRepository;
+    private final CommentRepository commentRepository;
+    private final SignalViewRepository signalViewRepository;
+    private final NearbySpaceRepository nearbySpaceRepository;
+    private final ConnectionRepository connectionRepository;
 
 
  public Optional<User> getUserByFirebaseUid(String firebaseUid) {
@@ -168,6 +183,10 @@ public User updateProfile(User user) {
             .orElseThrow(() -> new RuntimeException("User not found"));
 
    // UserService.updateProfile — add missing fields
+if (user.getName() != null) existing.setName(user.getName());
+if (user.getBio() != null) existing.setBio(user.getBio());
+if (user.getCity() != null) existing.setCity(user.getCity());
+if (user.getState() != null) existing.setState(user.getState());
 if (user.getUsername() != null) existing.setUsername(user.getUsername());
 if (user.getSubIndustry() != null) existing.setSubIndustry(user.getSubIndustry());
 if (user.getWebsiteUrl() != null) existing.setWebsiteUrl(user.getWebsiteUrl());
@@ -245,7 +264,33 @@ public void updatePresence(String firebaseUid) {
         });
     }
 
-
-
-
+    @Transactional
+    public void deleteAccount(User user) {
+        UUID userId = user.getId();
+        
+        // 1. Delete connections
+        connectionRepository.deleteByUserId(userId);
+        
+        // 2. Delete offers
+        offerRepository.deleteByRequesterId(userId);
+        offerRepository.deleteByReceiverId(userId);
+        
+        // 3. Delete comments
+        commentRepository.deleteByUserId(userId);
+        
+        // 4. Delete signals and related data
+        List<Signal> signals = signalRepository.findByUserId(userId);
+        for (Signal signal : signals) {
+            offerRepository.deleteBySignalId(signal.getId());
+            commentRepository.deleteBySignalId(signal.getId());
+            signalViewRepository.deleteBySignalId(signal.getId());
+            signalRepository.delete(signal);
+        }
+        
+        // 5. Delete spaces
+        nearbySpaceRepository.deleteByUser_Id(userId);
+        
+        // 6. Delete user
+        userRepository.delete(user);
+    }
 }

@@ -373,9 +373,9 @@ export default function AuthPage() {
                     {mode === 'login' && (
                         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4 text-left">
                             {signupSuccess && (
-                                <div className="flex items-start gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg mb-2">
-                                    <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
-                                    <p className="text-xs text-green-300 leading-relaxed">Account created! Please login with your new credentials.</p>
+                                <div className="flex items-start gap-2 p-3 bg-white/10 border border-white/20 rounded-lg mb-2">
+                                    <CheckCircle className="w-4 h-4 text-white mt-0.5 shrink-0" />
+                                    <p className="text-xs text-white/90 leading-relaxed">Account created! Please login with your new credentials.</p>
                                 </div>
                             )}
                             <form onSubmit={handleLogin} className="space-y-4">
@@ -443,8 +443,8 @@ export default function AuthPage() {
                     {/* ──── SUCCESS AFTER FORGOT PASSWORD ──── */}
                     {mode === 'forgot_password' && forgotSuccess && (
                         <motion.div key="forgot-success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="text-center space-y-4 py-4">
-                            <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                                <CheckCircle className="w-8 h-8 text-green-400" />
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto">
+                                <CheckCircle className="w-8 h-8 text-black" />
                             </div>
                             <h2 className="text-xl font-bold text-white">Reset Link Sent!</h2>
                             <p className="text-sm text-gray-400">If an account exists with <span className="text-white font-medium">{email}</span>, you will receive a password reset link shortly. Please check your inbox and spam folder.</p>
@@ -640,8 +640,8 @@ export default function AuthPage() {
                     {/* ──── SUCCESS AFTER SIGNUP ──── */}
                     {mode === 'signup' && signupSuccess && (
                         <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="text-center space-y-4 py-4">
-                            <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                                <CheckCircle className="w-8 h-8 text-green-400" />
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto">
+                                <CheckCircle className="w-8 h-8 text-black" />
                             </div>
                             <h2 className="text-xl font-bold text-white">Account Created!</h2>
                             <p className="text-sm text-gray-400">Your account has been set up. Please login now with the email and password you just created.</p>

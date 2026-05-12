@@ -34,7 +34,7 @@ export default function StatusModal({
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative"
+                    className="bg-surface w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative"
                 >
                     <button 
                         onClick={onClose}
@@ -46,9 +46,9 @@ export default function StatusModal({
                     <div className="p-8 text-center">
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${
                             type === 'upgrade' ? 'bg-primary/10 text-primary' : 
-                            type === 'duplicate' ? 'bg-yellow-50 text-yellow-600' :
-                            type === 'confirm' ? 'bg-red-50 text-red-600' :
-                            'bg-red-50 text-red-600'
+                            type === 'duplicate' ? 'bg-yellow-50/10 text-yellow-600' :
+                            type === 'confirm' ? 'bg-surface-2 text-text-primary' :
+                            'bg-surface-2 text-text-primary'
                         }`}>
                             {type === 'upgrade' ? <Zap className="w-8 h-8 fill-primary" /> : 
                              type === 'duplicate' ? <ShieldAlert className="w-8 h-8" /> :
@@ -56,7 +56,7 @@ export default function StatusModal({
                              <AlertCircle className="w-8 h-8" />}
                         </div>
 
-                        <h3 className="font-display text-2xl text-black mb-2">{title}</h3>
+                        <h3 className="font-display text-2xl text-text-primary mb-2">{title}</h3>
                         <p className="text-text-secondary text-sm leading-relaxed mb-8">
                             {message}
                         </p>
@@ -66,7 +66,7 @@ export default function StatusModal({
                                 <Link 
                                     href="/subscription"
                                     onClick={onClose}
-                                    className="block w-full py-3.5 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-2xl hover:opacity-90 transition-all"
+                                    className="block w-full py-3.5 bg-primary text-background text-xs font-bold uppercase tracking-widest rounded-2xl hover:opacity-90 transition-all"
                                 >
                                     View Plans & Upgrade
                                 </Link>
@@ -77,7 +77,7 @@ export default function StatusModal({
                                             onConfirm?.();
                                             onClose();
                                         }}
-                                        className="w-full py-3.5 bg-red-600 text-white text-xs font-bold uppercase tracking-widest rounded-2xl hover:bg-red-700 transition-all"
+                                        className="w-full py-3.5 bg-primary text-background text-xs font-bold uppercase tracking-widest rounded-2xl hover:opacity-90 transition-all"
                                     >
                                         {confirmText}
                                     </button>
@@ -91,7 +91,7 @@ export default function StatusModal({
                             ) : (
                                 <button
                                     onClick={onClose}
-                                    className="w-full py-3.5 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-2xl hover:opacity-90 transition-all"
+                                    className="w-full py-3.5 bg-primary text-background text-xs font-bold uppercase tracking-widest rounded-2xl hover:opacity-90 transition-all"
                                 >
                                     Got it
                                 </button>

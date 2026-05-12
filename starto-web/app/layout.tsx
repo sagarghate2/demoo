@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Script from 'next/script';
 import AuthProvider from '@/components/AuthProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
     title: 'Starto V3',
@@ -25,7 +26,9 @@ export default function RootLayout({
                 {/* Fix #7: top-level ErrorBoundary prevents blank screen on unhandled render errors */}
                 <ErrorBoundary>
                     <AuthProvider>
-                        {children}
+                        <ThemeProvider>
+                            {children}
+                        </ThemeProvider>
                     </AuthProvider>
                 </ErrorBoundary>
                 <Script

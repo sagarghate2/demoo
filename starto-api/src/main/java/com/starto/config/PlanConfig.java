@@ -6,11 +6,11 @@ import com.starto.enums.Plan;
 public class PlanConfig {
 
     public static final Map<Plan, Integer> MAX_SIGNALS = Map.of(
-        Plan.EXPLORER, 2,
-        Plan.TRIAL,5,
-        Plan.SPRINT, 5,
-        Plan.BOOST, 8,
-        Plan.PRO, 10,
+        Plan.EXPLORER, 6,
+        Plan.TRIAL, 10,
+        Plan.SPRINT, 20,
+        Plan.BOOST, 30,
+        Plan.PRO, 100,
         Plan.PRO_PLUS, Integer.MAX_VALUE,
         Plan.GROWTH, Integer.MAX_VALUE,
         Plan.ANNUAL, Integer.MAX_VALUE,

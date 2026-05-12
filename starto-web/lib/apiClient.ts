@@ -367,6 +367,10 @@ export const usersApi = {
     /** GET /api/users/plan-status — requires auth */
     getPlanStatus: () =>
         apiFetch<any>('/api/users/plan-status'),
+
+    /** DELETE /api/users/me — requires auth */
+    deleteAccount: () =>
+        apiFetch<void>('/api/users/me', { method: 'DELETE' }),
 };
 
 // ─── Comment API ─────────────────────────────────────────────────────────────
@@ -610,6 +614,41 @@ export const adminApi = {
     /** GET /api/admin/stats — admin only */
     getStats: () =>
         apiFetch<{ totalUsers: number }>('/api/admin/stats'),
+};
+
+export const promoCodesApi = {
+    /** GET /api/admin/promo-codes */
+    getAll: (params?: { status?: string; search?: string }) => {
+        const qs = params
+            ? '?' + Object.entries(params)
+                .filter(([, v]) => v != null)
+                .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
+                .join('&')
+            : '';
+        return apiFetch<any[]>(`/api/admin/promo-codes${qs}`);
+    },
+
+    /** POST /api/admin/promo-codes/generate */
+    generate: (count: number) =>
+        apiFetch<any[]>('/api/admin/promo-codes/generate', {
+            method: 'POST',
+            body: JSON.stringify({ count }),
+        }),
+
+    /** PUT /api/admin/promo-codes/:id/status */
+    updateStatus: (id: string, status: string) =>
+        apiFetch<any>(`/api/admin/promo-codes/${id}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status }),
+        }),
+
+    /** DELETE /api/admin/promo-codes/:id */
+    delete: (id: string) =>
+        apiFetch<void>(`/api/admin/promo-codes/${id}`, { method: 'DELETE' }),
+
+    /** GET /api/admin/promo-codes/stats */
+    getStats: () =>
+        apiFetch<any>('/api/admin/promo-codes/stats'),
 };
 
 export async function getAuthToken(): Promise<string | null> {

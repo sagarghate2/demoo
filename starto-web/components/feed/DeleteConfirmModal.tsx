@@ -28,9 +28,9 @@ export default function DeleteConfirmModal({
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center"
+                        className="bg-background w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center"
                     >
-                        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="w-16 h-16 bg-surface-2 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
                             <Trash2 className="w-8 h-8" />
                         </div>
                         <h3 className="text-xl font-bold mb-2 font-display">{title}</h3>
@@ -46,7 +46,7 @@ export default function DeleteConfirmModal({
                             <button
                                 disabled={isDeleting}
                                 onClick={onConfirm}
-                                className="px-4 py-3 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="px-4 py-3 bg-black text-white rounded-xl text-sm font-bold hover:bg-black/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {isDeleting ? 'Deleting...' : 'Confirm Delete'}
                             </button>

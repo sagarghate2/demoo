@@ -102,7 +102,9 @@ export default function PublicProfile({ params }: { params: { username: string }
         })
     }, [paramUsername, isAuthenticated, isInitialized, fetchRatingsFor, fetchSummary])
 
-    const isOwnProfile = isAuthenticated && paramUsername === storeUsername
+    const isOwnProfile = isAuthenticated && paramUsername && storeUsername && 
+        (paramUsername.toLowerCase() === storeUsername.toLowerCase() || 
+         (currentUser?.id && fetchedUser?.id && currentUser.id === fetchedUser.id))
     
     // Use fetched data if available, fallback to store if own profile, else defaults
     const activeUser = isOwnProfile ? currentUser : fetchedUser
@@ -187,8 +189,8 @@ export default function PublicProfile({ params }: { params: { username: string }
                         <div className="flex-1 pb-2">
                             <div className="flex flex-col mb-1">
                                 <div className="flex items-center gap-2">
-                                    <h1 className="text-3xl font-display font-bold text-black">{displayName}</h1>
-                                    {(displayVerified || displaySubscription === 'Pro' || displaySubscription === 'Founder') && (
+                                    <h1 className="text-3xl font-display font-bold text-text-primary">{displayName}</h1>
+                                    {(displayVerified || displaySubscription === 'Pro' || displaySubscription === 'Founder') && !displaySubscription.toLowerCase().includes('explorer') && (
                                         <span title={`${displaySubscription} Verified`} className="relative inline-flex items-center justify-center">
                                             <BadgeCheck className="w-6 h-6 fill-black text-white" />
                                         </span>
@@ -199,7 +201,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                             <p className="text-text-secondary font-medium flex items-center gap-2">
                                 {displayRole} • {displayCity.split(',')[0]}
                                 <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-                                <span className="text-[10px] px-2.5 py-1 bg-surface-2 rounded-full uppercase tracking-widest font-bold border border-border text-black whitespace-nowrap">
+                                <span className="text-[10px] px-2.5 py-1 bg-surface-2 rounded-full uppercase tracking-widest font-bold border border-border text-text-primary whitespace-nowrap">
                                     {displaySubscription} Account
                                 </span>
                                 {isOwnProfile && activeUser?.planExpiresAt && (
@@ -213,108 +215,122 @@ export default function PublicProfile({ params }: { params: { username: string }
                                     </span>
                                 )}
                             </p>
-                        </div>
-
-                        {!isOwnProfile && (() => {
-                            const isPending = isMounted && Array.isArray(sentRequests) && sentRequests.some(r => (r.receiverUsername === paramUsername || r.requesterUsername === paramUsername) && r.status === 'PENDING');
-                            const alreadyConnected = isMounted && Array.isArray(connections) && connections.some(c => c.requesterUsername === paramUsername || c.receiverUsername === paramUsername);
                             
-                            if (alreadyConnected) {
-                                return (
-                                    <div className="pb-2 flex gap-2">
-                                        <button 
-                                            onClick={async () => {
-                                                try {
-                                                    const conn = connections.find(c => c.requesterUsername === paramUsername || c.receiverUsername === paramUsername);
-                                                    if (!conn) return;
-                                                    const { data, error } = await connectionsApi.getWhatsappLink(conn.id);
-                                                    if (data?.whatsappUrl) {
-                                                        window.open(data.whatsappUrl, '_blank');
-                                                    } else if (error) {
+                            {!isOwnProfile && (() => {
+                                const isPending = isMounted && Array.isArray(sentRequests) && sentRequests.some(r => 
+                                    (r.receiverId === fetchedUser?.id || r.receiverUsername?.toLowerCase() === paramUsername?.toLowerCase()) && 
+                                    r.status === 'PENDING'
+                                );
+                                const alreadyConnected = isMounted && Array.isArray(connections) && connections.some(c => {
+                                    const isCurrentUserInvolved = currentUser?.id && (c.requesterId === currentUser.id || c.receiverId === currentUser.id);
+                                    const isFetchedUserInvolved = fetchedUser?.id && (c.requesterId === fetchedUser.id || c.receiverId === fetchedUser.id);
+                                    const matchByUsername = c.requesterUsername?.toLowerCase() === paramUsername?.toLowerCase() || 
+                                                            c.receiverUsername?.toLowerCase() === paramUsername?.toLowerCase();
+                                    return (isCurrentUserInvolved && isFetchedUserInvolved) || matchByUsername;
+                                });
+                                
+                                if (alreadyConnected) {
+                                    return (
+                                        <div className="mt-4 flex gap-2">
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        const conn = connections.find(c => 
+                                                            c.requesterUsername?.toLowerCase() === paramUsername?.toLowerCase() || 
+                                                            c.receiverUsername?.toLowerCase() === paramUsername?.toLowerCase() ||
+                                                            c.requesterId === paramUsername ||
+                                                            c.receiverId === paramUsername
+                                                        );
+                                                        if (!conn) return;
+                                                        const { data, error } = await connectionsApi.getWhatsappLink(conn.id);
+                                                        if (data?.whatsappUrl) {
+                                                            window.open(data.whatsappUrl, '_blank');
+                                                        } else if (error) {
+                                                            setStatusModal({
+                                                                isOpen: true,
+                                                                type: 'upgrade',
+                                                                title: 'Upgrade Required',
+                                                                message: error || 'Upgrade your plan to unlock WhatsApp contact'
+                                                            });
+                                                        }
+                                                    } catch (err: any) {
                                                         setStatusModal({
                                                             isOpen: true,
                                                             type: 'upgrade',
                                                             title: 'Upgrade Required',
-                                                            message: error || 'Upgrade your plan to unlock WhatsApp contact'
+                                                            message: err.message || 'Upgrade your plan to unlock WhatsApp contact'
                                                         });
                                                     }
-                                                } catch (err: any) {
-                                                    setStatusModal({
-                                                        isOpen: true,
-                                                        type: 'upgrade',
-                                                        title: 'Upgrade Required',
-                                                        message: err.message || 'Upgrade your plan to unlock WhatsApp contact'
-                                                    });
-                                                }
-                                            }}
-                                            className="px-6 py-2.5 bg-accent-green text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-accent-green/20"
-                                        >
-                                            <Zap className="w-4 h-4 fill-white" /> WhatsApp
-                                        </button>
-                                        <div className="px-6 py-2.5 bg-surface-2 text-accent-green border border-accent-green/20 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center gap-2">
-                                            <CheckCheck className="w-4 h-4" /> Connected
+                                                }}
+                                                className="px-6 py-2.5 bg-accent-green text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-accent-green/20"
+                                            >
+                                                <Zap className="w-4 h-4 fill-white" /> WhatsApp
+                                            </button>
+                                            <div className="px-6 py-2.5 bg-surface-2 text-accent-green border border-accent-green/20 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center gap-2">
+                                                <CheckCheck className="w-4 h-4" /> Connected
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            }
+                                    );
+                                }
 
-                            return (
-                                <div className="pb-2">
-                                    <button 
-                                        onClick={async () => {
-                                            if (isPending || requestJustSent) {
-                                                setStatusModal({
-                                                    isOpen: true,
-                                                    type: 'duplicate',
-                                                    title: 'Request Pending',
-                                                    message: 'A connection request is already pending with this person.'
-                                                });
-                                                return;
-                                            }
-                                            try {
-                                                await sendRequest(null, 'I want to connect!', fetchedUser?.id);
-                                                setRequestJustSent(true);
-                                            } catch (err: any) {
-                                                if (err.message?.includes('already connected') || err.message === 'Request already exists') {
-                                                    setRequestJustSent(true);
+                                return (
+                                    <div className="mt-4">
+                                        <button 
+                                            onClick={async () => {
+                                                if (isPending || requestJustSent) {
                                                     setStatusModal({
                                                         isOpen: true,
                                                         type: 'duplicate',
-                                                        title: 'Already Connected',
-                                                        message: 'You are already connected or have a pending request with this person.'
+                                                        title: 'Request Pending',
+                                                        message: 'A connection request is already pending with this person.'
                                                     });
-                                                } else {
-                                                    setStatusModal({
-                                                        isOpen: true,
-                                                        type: 'error',
-                                                        title: 'Request Failed',
-                                                        message: err.message || 'Failed to send request'
-                                                    });
+                                                    return;
                                                 }
-                                            }
-                                        }}
-                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
-                                            requestJustSent || isPending ? 'bg-green-500 text-white' : 'bg-black text-white hover:bg-black/80'
-                                        }`}
-                                        disabled={isPending || requestJustSent || alreadyConnected}
-                                    >
-                                        {requestJustSent ? (
-                                            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2">
-                                                <BadgeCheck className="w-4 h-4" /> Sending...
-                                            </motion.div>
-                                        ) : isPending ? (
-                                            <>
-                                                <BadgeCheck className="w-4 h-4" /> Request Sent
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Users className="w-4 h-4" /> Connect
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            );
-                        })()}
+                                                try {
+                                                    await sendRequest(null, 'I want to connect!', fetchedUser?.id);
+                                                    setRequestJustSent(true);
+                                                } catch (err: any) {
+                                                    if (err.message?.includes('already connected') || err.message === 'Request already exists') {
+                                                        setRequestJustSent(true);
+                                                        setStatusModal({
+                                                            isOpen: true,
+                                                            type: 'duplicate',
+                                                            title: 'Already Connected',
+                                                            message: 'You are already connected or have a pending request with this person.'
+                                                        });
+                                                    } else {
+                                                        setStatusModal({
+                                                            isOpen: true,
+                                                            type: 'error',
+                                                            title: 'Request Failed',
+                                                            message: err.message || 'Failed to send request'
+                                                        });
+                                                    }
+                                                }
+                                            }}
+                                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                requestJustSent || isPending ? 'bg-surface-2 text-text-muted border border-border' : 'bg-primary text-background hover:opacity-90'
+                                            }`}
+                                            disabled={isPending || requestJustSent || alreadyConnected}
+                                        >
+                                            {requestJustSent ? (
+                                                <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2">
+                                                    <BadgeCheck className="w-4 h-4" /> Sending...
+                                                </motion.div>
+                                            ) : isPending ? (
+                                                <>
+                                                    <BadgeCheck className="w-4 h-4" /> Request Sent
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Users className="w-4 h-4" /> Connect
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
 
                     {/* Profile Body */}
@@ -363,19 +379,19 @@ export default function PublicProfile({ params }: { params: { username: string }
                         <div className="flex gap-12 pt-6 mb-8">
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Signals</p>
-                                <p className="text-2xl font-mono font-bold text-black">{signalsCount}</p>
+                                <p className="text-2xl font-mono font-bold text-text-primary">{signalsCount}</p>
                             </div>
                             <div 
                                 onClick={() => setIsNetworkModalOpen(true)}
                                 className="cursor-pointer group"
                             >
                                 <p className="text-[10px] uppercase font-bold text-text-muted mb-1 group-hover:text-primary transition-colors">Connections</p>
-                                <p className="text-2xl font-mono font-bold text-black group-hover:text-primary transition-colors">{connectionsCount}</p>
+                                <p className="text-2xl font-mono font-bold text-text-primary group-hover:text-primary transition-colors">{connectionsCount}</p>
                             </div>
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-text-muted mb-1">Rating</p>
                                 <div className="flex items-center gap-1">
-                                    <p className="text-2xl font-mono font-bold text-black">{(isMounted && avgRating > 0) ? avgRating.toFixed(1) : '—'}</p>
+                                    <p className="text-2xl font-mono font-bold text-text-primary">{(isMounted && avgRating > 0) ? avgRating.toFixed(1) : '—'}</p>
                                     {isMounted && avgRating > 0 && <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />}
                                 </div>
                                 <p className="text-[10px] text-text-muted">{allRatings.length} {allRatings.length === 1 ? 'review' : 'reviews'}</p>
@@ -383,25 +399,27 @@ export default function PublicProfile({ params }: { params: { username: string }
                         </div>
 
                         {/* Social Nodes (Moved to Main Body) */}
-                        {(displayLinkedin || displayTwitter || displayGithub) && (
-                            <div className="flex flex-wrap gap-4 pt-6 border-t border-border mt-4">
+                        {(displayLinkedin || displayTwitter || displayGithub || displayWebsite) && (
+                            <div className="flex gap-2 mb-4">
                                 {displayLinkedin && (
-                                    <Link href={formatURL(displayLinkedin)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-primary transition-all">
-                                        <Linkedin className="w-4 h-4 text-black group-hover:text-primary" />
-                                        <span className="text-xs font-bold text-black">LinkedIn</span>
-                                    </Link>
+                                    <a href={formatURL(displayLinkedin)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="LinkedIn">
+                                        <Linkedin className="w-4 h-4" />
+                                    </a>
                                 )}
                                 {displayTwitter && (
-                                    <Link href={formatURL(displayTwitter.startsWith('http') ? displayTwitter : `twitter.com/${displayTwitter.replace('@', '')}`)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-black transition-all">
-                                        <Twitter className="w-4 h-4 text-black group-hover:text-black" />
-                                        <span className="text-xs font-bold text-black">Twitter</span>
-                                    </Link>
+                                    <a href={formatURL(displayTwitter.startsWith('http') ? displayTwitter : `twitter.com/${displayTwitter.replace('@', '')}`)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="Twitter">
+                                        <Twitter className="w-4 h-4" />
+                                    </a>
                                 )}
                                 {displayGithub && (
-                                    <Link href={formatURL(displayGithub)} target="_blank" className="flex items-center gap-2 group bg-surface-2 px-3 py-2 rounded-xl border border-border hover:border-black transition-all">
-                                        <Github className="w-4 h-4 text-black group-hover:text-black" />
-                                        <span className="text-xs font-bold text-black">GitHub</span>
-                                    </Link>
+                                    <a href={formatURL(displayGithub)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="GitHub">
+                                        <Github className="w-4 h-4" />
+                                    </a>
+                                )}
+                                {displayWebsite && (
+                                    <a href={formatURL(displayWebsite)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="Website">
+                                        <Globe className="w-4 h-4" />
+                                    </a>
                                 )}
                             </div>
                         )}
@@ -474,7 +492,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                         <div 
                                             key={space.id} 
                                             onClick={() => router.push(`/signals/${space.id}`)}
-                                            className="cursor-pointer p-6 bg-white rounded-3xl border border-border group hover:border-black transition-all shadow-sm"
+                                            className="cursor-pointer p-6 bg-surface rounded-3xl border border-border group hover:border-black transition-all shadow-sm"
                                         >
                                             <div className="flex justify-between items-start mb-4">
                                                 <span className="text-[10px] px-3 py-1 bg-surface-2 text-black border border-border rounded-full uppercase font-bold tracking-widest">
@@ -559,7 +577,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                 <div className="mt-8 space-y-6">
                                     <h3 className="font-display text-lg mb-4">Member Feedback</h3>
                                     {allRatings.map((rating) => (
-                                        <div key={rating.id} className="p-5 bg-white border border-border rounded-2xl shadow-sm">
+                                        <div key={rating.id} className="p-5 bg-surface border border-border rounded-2xl shadow-sm">
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="flex items-center gap-3">
                                                     <VerifiedAvatar
@@ -600,13 +618,13 @@ export default function PublicProfile({ params }: { params: { username: string }
 
                             {/* Leave a Rating */}
                             {ratingSubmitted || alreadyRated ? (
-                                <div className="p-6 bg-green-50 border border-green-200 rounded-2xl text-center">
+                                <div className="p-6 bg-surface-2 border border-border rounded-2xl text-center">
                                     <Star className="w-8 h-8 fill-yellow-400 text-yellow-400 mx-auto mb-2" />
-                                    <p className="font-bold text-green-700">Thanks for your feedback!</p>
-                                    <p className="text-sm text-green-600">Your rating has been submitted.</p>
+                                    <p className="font-bold text-text-primary">Thanks for your feedback!</p>
+                                    <p className="text-sm text-text-secondary">Your rating has been submitted.</p>
                                 </div>
                             ) : (
-                                <div className="p-6 bg-white border border-border rounded-2xl">
+                                <div className="p-6 bg-surface border border-border rounded-2xl">
                                     <p className="font-bold text-sm mb-4 uppercase tracking-widest text-[10px] text-text-muted">Rate this member</p>
                                     <div className="flex gap-2 mb-4">
                                         {[1, 2, 3, 4, 5].map(star => (
@@ -640,7 +658,7 @@ export default function PublicProfile({ params }: { params: { username: string }
                                     <button
                                         disabled={!selectedStar}
                                         onClick={handleSubmitRating}
-                                        className="px-6 py-2.5 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="px-6 py-2.5 bg-primary text-background text-xs font-bold uppercase tracking-widest rounded-xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         Submit Rating
                                     </button>
@@ -653,39 +671,39 @@ export default function PublicProfile({ params }: { params: { username: string }
                 {/* Right Sidebar — Social Links */}
                 <aside className="hidden xl:block w-[320px] p-8 space-y-8">
                     {(displayLinkedin || displayTwitter || displayGithub) && (
-                        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+                        <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm">
                             <h3 className="font-display text-xl mb-6">Social Nodes</h3>
                             <div className="space-y-6">
                                 {displayLinkedin && (
                                     <Link href={formatURL(displayLinkedin)} target="_blank" className="flex items-center gap-4 group">
-                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-primary group-hover:text-white transition-all text-black">
+                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-primary group-hover:text-background transition-all text-text-primary">
                                             <Linkedin className="w-5 h-5" />
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold uppercase text-text-muted">LinkedIn</p>
-                                            <p className="text-sm font-medium truncate text-black">{extractHandle(displayLinkedin, '')}</p>
+                                            <p className="text-sm font-medium truncate text-text-primary">{extractHandle(displayLinkedin, '')}</p>
                                         </div>
                                     </Link>
                                 )}
                                 {displayTwitter && (
                                     <Link href={formatURL(`twitter.com/${displayTwitter.replace('@', '')}`)} target="_blank" className="flex items-center gap-4 group">
-                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-black group-hover:text-white transition-all">
+                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-primary group-hover:text-background transition-all text-text-primary">
                                             <Twitter className="w-5 h-5" />
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold uppercase text-text-muted">Twitter</p>
-                                            <p className="text-sm font-medium text-black">{displayTwitter.startsWith('http') ? extractHandle(displayTwitter) : (displayTwitter.startsWith('@') ? displayTwitter : `@${displayTwitter}`)}</p>
+                                            <p className="text-sm font-medium text-text-primary">{displayTwitter.startsWith('http') ? extractHandle(displayTwitter) : (displayTwitter.startsWith('@') ? displayTwitter : `@${displayTwitter}`)}</p>
                                         </div>
                                     </Link>
                                 )}
                                 {displayGithub && (
                                     <Link href={formatURL(displayGithub)} target="_blank" className="flex items-center gap-4 group">
-                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-black group-hover:text-white transition-all text-black">
+                                        <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border group-hover:bg-primary group-hover:text-background transition-all text-text-primary">
                                             <Github className="w-5 h-5" />
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold uppercase text-text-muted">GitHub</p>
-                                            <p className="text-sm font-medium truncate text-black">{extractHandle(displayGithub, '')}</p>
+                                            <p className="text-sm font-medium truncate text-text-primary">{extractHandle(displayGithub, '')}</p>
                                         </div>
                                     </Link>
                                 )}

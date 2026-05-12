@@ -64,6 +64,7 @@ function mapApiSignalToCard(s: any) {
         userPlan: s.userPlan || 'free',
         userIsVerified: s.userIsVerified,
         createdAt: s.createdAt,
+        expiresAt: s.expiresAt,
         signalStrength: s.signalStrength,
         
         // Space specific
@@ -189,7 +190,7 @@ export default function HomeFeed() {
                 <main className="flex-1 max-w-2xl w-full px-4 py-8 md:overflow-y-auto border-r border-border">
                     <header className="mb-8 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-background/90 backdrop-blur-md sticky top-0 z-20 py-4 -mx-4 px-4 border-b border-border">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-display tracking-tight text-black">Signals Feed</h1>
+                            <h1 className="text-2xl font-display tracking-tight text-text-primary">Signals Feed</h1>
 
                             {/* Backend status and local mode notice moved into header for compactness */}
                             {!loading && backendError && (
@@ -208,7 +209,7 @@ export default function HomeFeed() {
                                         placeholder="Search signals..."
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        className="pl-9 pr-4 py-2 bg-white/50 border border-border rounded-full text-sm focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/5 w-full transition-all"
+                                        className="pl-9 pr-4 py-2 bg-surface/50 border border-border rounded-full text-sm focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/5 w-full transition-all"
                                     />
                                     {query && (
                                         <button
@@ -223,14 +224,14 @@ export default function HomeFeed() {
 
                             <button
                                 onClick={() => requireAuth(() => setIsSpaceModalOpen(true))}
-                                className="bg-white text-black border border-border px-4 py-2 rounded-full flex items-center gap-2 hover:bg-surface-2 transition-all shrink-0 shadow-sm"
+                                className="bg-surface text-text-primary border border-border px-4 py-2 rounded-full flex items-center gap-2 hover:bg-surface-2 transition-all shrink-0 shadow-sm"
                             >
                                 <Building className="w-4 h-4" />
                                 <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Space</span>
                             </button>
                             <button
                                 onClick={() => requireAuth(() => setIsRaiseModalOpen(true))}
-                                className="bg-black text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-black/90 transition-all shrink-0 shadow-sm"
+                                className="bg-primary text-background px-4 py-2 rounded-full flex items-center gap-2 hover:bg-black/90 transition-all shrink-0 shadow-sm"
                             >
                                 <Plus className="w-4 h-4" />
                                 <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Raise</span>
@@ -291,12 +292,12 @@ export default function HomeFeed() {
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h3 className="font-display text-lg mb-2 relative z-10">Need Market Analysis?</h3>
                         <p className="text-text-secondary text-sm mb-6 relative z-10">Real World Data. No Hallucinations. Powered by Starto AI.</p>
-                        <button onClick={() => requireAuth(() => router.push('/explore'))} className="w-full bg-primary text-white py-3 rounded-md font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 relative z-10">
+                        <button onClick={() => requireAuth(() => router.push('/explore'))} className="w-full bg-primary text-background py-3 rounded-md font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 relative z-10">
                             Launch Explore →
                         </button>
                     </div>
 
-                    <div className="bg-white border border-border border-dashed p-6 rounded-xl shadow-sm relative overflow-hidden group">
+                    <div className="bg-surface border border-border border-dashed p-6 rounded-xl shadow-sm relative overflow-hidden group">
                         <div className="absolute top-3 right-3">
                             <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
                                 Coming Soon

@@ -98,10 +98,10 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-white w-full max-w-[600px] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                    className="bg-surface w-full max-w-[600px] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
                 >
                     {/* Header */}
-                    <div className="p-6 border-b border-border flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div className="p-6 border-b border-border flex justify-between items-center bg-surface sticky top-0 z-10">
                         <div>
                             <h2 className="text-2xl font-bold font-display tracking-tight">Create a New Space</h2>
                             <p className="text-xs text-text-secondary mt-1 uppercase tracking-widest font-semibold opacity-60">Add your community hub to the map</p>
@@ -116,11 +116,11 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                         <section>
                             <label className="text-xs font-bold uppercase tracking-widest text-text-muted mb-3 block">Space Name <span className="text-primary">*</span></label>
                             <div className="relative group">
-                                <Building className="absolute left-0 top-3 w-5 h-5 text-text-muted group-focus-within:text-black transition-colors" />
+                                <Building className="absolute left-0 top-3 w-5 h-5 text-text-muted group-focus-within:text-primary transition-colors" />
                                 <input
                                     type="text"
                                     placeholder="e.g. Starto Innovation Lab"
-                                    className="w-full bg-transparent pl-8 pb-2 border-b border-border outline-none focus:border-black text-lg font-display placeholder:text-text-muted/40 transition-all"
+                                    className="w-full bg-transparent pl-8 pb-2 border-b border-border outline-none focus:border-primary text-lg font-display placeholder:text-text-muted/40 transition-all"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                 />
@@ -135,7 +135,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                                     <button 
                                         key={t} 
                                         onClick={() => setType(t)}
-                                        className={`px-5 py-2 rounded-full border text-xs font-bold uppercase tracking-tighter transition-all ${type === t ? 'bg-black text-white border-black shadow-lg shadow-black/20' : 'border-border text-text-secondary hover:border-black hover:text-black'}`}
+                                        className={`px-5 py-2 rounded-full border text-xs font-bold uppercase tracking-tighter transition-all ${type === t ? 'bg-primary text-background border-primary shadow-lg shadow-black/20' : 'border-border text-text-secondary hover:border-primary hover:text-primary'}`}
                                     >
                                         {t}
                                     </button>
@@ -148,7 +148,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                             <label className="text-xs font-bold uppercase tracking-widest text-text-muted mb-3 block">Description <span className="text-primary">*</span></label>
                             <textarea
                                 placeholder="Describe the facilities, vibe, and community focus of this space..."
-                                className="w-full bg-surface-1 p-5 rounded-2xl border border-border outline-none focus:border-black text-sm h-32 resize-none placeholder:text-text-muted/50 shadow-inner"
+                                className="w-full bg-surface-1 p-5 rounded-2xl border border-border outline-none focus:border-primary text-sm h-32 resize-none placeholder:text-text-muted/50 shadow-inner"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                             />
@@ -166,7 +166,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                                     <input
                                         type="text"
                                         placeholder="Floor, Building, Area..."
-                                        className="w-full bg-white px-4 py-3 rounded-xl border border-border outline-none focus:border-black text-sm shadow-sm"
+                                        className="w-full bg-surface px-4 py-3 rounded-xl border border-border outline-none focus:border-primary text-sm shadow-sm"
                                         value={address}
                                         onChange={(e) => setAddress(e.target.value)}
                                     />
@@ -208,7 +208,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                                 <input
                                     type="text"
                                     placeholder="Phone or email"
-                                    className="w-full bg-white px-4 py-3 rounded-xl border border-border outline-none focus:border-black text-sm shadow-sm"
+                                    className="w-full bg-surface px-4 py-3 rounded-xl border border-border outline-none focus:border-primary text-sm shadow-sm"
                                     value={contact}
                                     onChange={(e) => setContact(e.target.value)}
                                 />
@@ -220,7 +220,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                                 <input
                                     type="url"
                                     placeholder="https://..."
-                                    className="w-full bg-white px-4 py-3 rounded-xl border border-border outline-none focus:border-black text-sm shadow-sm"
+                                    className="w-full bg-surface px-4 py-3 rounded-xl border border-border outline-none focus:border-primary text-sm shadow-sm"
                                     value={website}
                                     onChange={(e) => setWebsite(e.target.value)}
                                 />
@@ -255,7 +255,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: CreateSpaceModalPr
                         <button 
                             onClick={handleSubmit}
                             disabled={submitting}
-                            className={`w-full text-white px-8 py-5 rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase shadow-xl ${submitting ? 'bg-black/60' : 'bg-black hover:bg-black/90 hover:-translate-y-0.5 active:translate-y-0 shadow-black/20'}`}
+                            className={`w-full text-background px-8 py-5 rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase shadow-xl ${submitting ? 'bg-primary/60' : 'bg-primary hover:opacity-90 hover:-translate-y-0.5 active:translate-y-0 shadow-black/20'}`}
                         >
                             {submitting ? (
                                 <><Loader2 className="w-5 h-5 animate-spin" /> Publishing Hub…</>

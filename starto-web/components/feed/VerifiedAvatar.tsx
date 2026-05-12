@@ -18,7 +18,7 @@ function isVerifiedPlan(plan?: string | null) {
     if (!plan) return false
     const p = plan.toLowerCase()
     // Explorer is the only free plan, all others are paid/verified
-    return p !== 'explorer' && p !== 'free'
+    return !p.includes('explorer') && !p.includes('free')
 }
 
 export default function VerifiedAvatar({
@@ -31,7 +31,8 @@ export default function VerifiedAvatar({
     className = '',
 }: VerifiedAvatarProps) {
     const [imageError, setImageError] = useState(false)
-    const verified = explicitVerified || isVerifiedPlan(plan)
+    const isExplorer = plan && plan.toLowerCase().includes('explorer')
+    const verified = !isExplorer && (explicitVerified || isVerifiedPlan(plan))
     
     // Logic for Letter DP (Gmail style)
     const getInitials = (name: string) => {

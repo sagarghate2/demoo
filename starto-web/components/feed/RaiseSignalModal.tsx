@@ -253,9 +253,9 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-white w-full max-w-[540px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
+                    className="bg-surface w-full max-w-[540px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
                 >
-                    <div className="p-6 border-b border-border flex justify-between items-center bg-white">
+                    <div className="p-6 border-b border-border flex justify-between items-center bg-surface">
                         <h2 className="text-2xl font-bold font-display">{editSignal ? 'Modify Signal' : 'Raise a New Signal'}</h2>
                         <button onClick={onClose} className="p-2 hover:bg-surface-2 rounded-full transition-all text-text-muted">
                             <X className="w-5 h-5" />
@@ -273,7 +273,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     <button 
                                         key={s} 
                                         onClick={() => setStage(s)}
-                                        className={`px-4 py-1.5 rounded-full border text-sm transition-all ${stage === s ? 'bg-primary text-white border-primary font-medium' : 'border-border text-text-secondary hover:border-black hover:text-black'}`}
+                                        className={`px-4 py-1.5 rounded-full border text-sm transition-all ${stage === s ? 'bg-primary text-background border-primary font-medium' : 'border-border text-text-secondary hover:border-black hover:text-black'}`}
                                     >
                                         {s}
                                     </button>
@@ -300,7 +300,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                         {/* Location */}
                         <section className="relative">
                             <div className="flex justify-between items-center mb-2">
-                                <label className="text-sm font-medium text-black">Location / Address</label>
+                                <label className="text-sm font-medium text-text-primary">Location / Address</label>
                                 <button 
                                     type="button"
                                     onClick={() => {
@@ -341,7 +341,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                 value={address}
                                 onChange={handleSelectLocation}
                                 placeholder="Enter city or full address..."
-                                inputClassName="w-full bg-white p-3 rounded-none border-b border-border outline-none focus:border-black text-sm placeholder:text-text-muted/60"
+                                inputClassName="w-full bg-surface p-3 rounded-none border-b border-border outline-none focus:border-primary text-sm placeholder:text-text-muted/60"
                             />
                             
 
@@ -352,11 +352,11 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
 
                         {/* Headline */}
                         <section>
-                            <label className="text-sm font-medium text-black mb-2 block">What's the signal headline?</label>
+                            <label className="text-sm font-medium text-text-primary mb-2 block">What's the signal headline?</label>
                             <input
                                 type="text"
                                 placeholder="Type a catchy headline..."
-                                className="w-full bg-white p-3 rounded-none border-b border-border outline-none focus:border-black text-base placeholder:text-text-muted/60 font-serif pb-2 placeholder:font-serif"
+                                className="w-full bg-surface p-3 rounded-none border-b border-border outline-none focus:border-primary text-base placeholder:text-text-muted/60 font-serif pb-2 placeholder:font-serif"
                                 value={headline}
                                 onChange={(e) => setHeadline(e.target.value)}
                             />
@@ -364,10 +364,10 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
 
                         {/* Details */}
                         <section>
-                            <label className="text-sm font-medium text-black mb-2 block">Details & Context</label>
+                            <label className="text-sm font-medium text-text-primary mb-2 block">Details & Context</label>
                             <textarea
                                 placeholder="Explain what you are looking for or offering in more detail..."
-                                className="w-full bg-white p-4 rounded-xl border border-border outline-none focus:border-black text-sm gap-2 h-32 resize-none placeholder:text-text-muted/60 shadow-sm"
+                                className="w-full bg-surface p-4 rounded-xl border border-border outline-none focus:border-primary text-sm gap-2 h-32 resize-none placeholder:text-text-muted/60 shadow-sm"
                                 value={details}
                                 onChange={(e) => setDetails(e.target.value)}
                             />
@@ -375,7 +375,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
 
                         {/* Duration */}
                         <section>
-                            <label className="text-sm font-medium text-black mb-2 flex justify-between items-center block">
+                            <label className="text-sm font-medium text-text-primary mb-2 flex justify-between items-center block">
                                 <span>Signal Duration <span className="text-red-500">*</span></span>
                                 <span className={`font-mono font-bold ${duration === 0 ? 'text-text-muted' : (duration > 7 && (!user?.plan || user.plan.toUpperCase() === 'EXPLORER')) ? 'text-orange-600' : 'text-primary'} flex items-center gap-2`}>
                                     {editSignal && <span className="text-[9px] uppercase bg-surface-1 px-1.5 py-0.5 rounded border border-border text-text-muted flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Fixed</span>}
@@ -387,7 +387,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                     type="range" 
                                     min="0" 
                                     max="30" 
-                                    className={`w-full accent-black ${editSignal ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+                                    className={`w-full accent-primary ${editSignal ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
                                     value={duration}
                                     onChange={(e) => !editSignal && setDuration(parseInt(e.target.value))}
                                     disabled={!!editSignal}
@@ -395,7 +395,7 @@ export default function RaiseSignalModal({ isOpen, onClose, editSignal }: RaiseS
                                 <div className="flex justify-between text-[10px] text-text-muted mt-2 font-medium uppercase tracking-widest">
                                     <span>0</span>
                                     <span>1 Day</span>
-                                    <span className="text-black font-bold">7 Days (Free Max)</span>
+                                    <span className="text-text-primary font-bold">7 Days (Free Max)</span>
                                     <span>30 Days</span>
                                 </div>
                                 {editSignal && (

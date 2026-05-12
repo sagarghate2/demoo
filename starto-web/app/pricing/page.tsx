@@ -159,7 +159,7 @@ export default function PricingPage() {
                                         key={p.plan} 
                                         className={`p-8 rounded-2xl flex flex-col transition-all border ${
                                             isPro 
-                                            ? 'bg-primary text-white shadow-2xl shadow-primary/20 border-transparent' 
+                                            ? 'bg-primary text-background shadow-2xl shadow-primary/20 border-transparent' 
                                             : 'bg-white border-border hover:border-text-muted'
                                         }`}
                                     >
@@ -197,7 +197,7 @@ export default function PricingPage() {
                                                 ? 'bg-accent-green text-white hover:bg-accent-green/90 shadow-lg shadow-accent-green/20' 
                                                 : isPro 
                                                 ? 'bg-white text-primary hover:bg-white/90' 
-                                                : 'bg-primary text-white hover:bg-primary/90'
+                                                : 'bg-primary text-background hover:bg-primary/90'
                                             }`}
                                         >
                                             {purchasing === p.plan ? (

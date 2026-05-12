@@ -26,4 +26,8 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Modifying
     void deleteBySpaceId(UUID spaceId);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByUserId(UUID userId);
 }

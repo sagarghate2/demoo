@@ -23,4 +23,8 @@ public interface NearbySpaceRepository extends JpaRepository<NearbySpace, UUID> 
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Query(value = "UPDATE nearby_spaces s SET response_count = (SELECT COUNT(*) FROM comments c WHERE c.space_id = s.id)", nativeQuery = true)
     void syncAllResponseCounts();
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByUser_Id(UUID userId);
 }

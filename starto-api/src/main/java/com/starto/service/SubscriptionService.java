@@ -22,6 +22,7 @@ import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 import com.starto.service.EmailService;
 import com.starto.service.NotificationService;
+import com.starto.service.PromoCodeService;
 import com.razorpay.Payment;
 
 import jakarta.transaction.Transactional;
@@ -49,6 +50,7 @@ public class SubscriptionService {
     private final NearbySpaceRepository nearbySpaceRepository;
     private final OfferRepository offerRepository;
     private final AiUsageRepository aiUsageRepository;
+    private final PromoCodeService promoCodeService;
 
     public SubscriptionResponseDTO createOrder(User user, String plan) {
 
@@ -371,14 +373,10 @@ public void activateSubscriptionBySubscription(String subscriptionId, String pay
 
 @Transactional
 public void activateViaCoupon(User user, String plan, String couponCode) {
-    if (!"GOSTARTO".equals(couponCode)) {
-        throw new RuntimeException("Invalid coupon code");
-    }
+    // Validate and redeem promo code
+    promoCodeService.redeemCode(user, couponCode);
     
     Plan planEnum = Plan.fromString(plan);
-    if (planEnum != Plan.PRO_PLUS) {
-        throw new RuntimeException("Coupon not applicable for this plan");
-    }
 
     PlanEntity planEntity = planRepository.findByCode(planEnum)
             .orElseThrow(() -> new RuntimeException("Plan not found"));

@@ -46,25 +46,28 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     List<Connection> findByRequesterId(@Param("requesterId") UUID requesterId);
 
     @Query("SELECT c FROM Connection c JOIN FETCH c.requester JOIN FETCH c.receiver WHERE c.requester.id = :requesterId AND c.receiver.id = :receiverId")
-Optional<Connection> findByRequesterIdAndReceiverId(
-    @Param("requesterId") UUID requesterId,
-    @Param("receiverId") UUID receiverId
-);
+    Optional<Connection> findByRequesterIdAndReceiverId(
+        @Param("requesterId") UUID requesterId,
+        @Param("receiverId") UUID receiverId
+    );
 
+    @Query("""
+        SELECT c FROM Connection c
+        JOIN FETCH c.requester
+        JOIN FETCH c.receiver
+        WHERE c.status = 'ACCEPTED'
+        AND (c.requester.id = :userId OR c.receiver.id = :userId)
+    """)
+    List<Connection> findAcceptedByUserId(@Param("userId") UUID userId);
 
-@Query("""
-    SELECT c FROM Connection c
-    JOIN FETCH c.requester
-    JOIN FETCH c.receiver
-    WHERE c.status = 'ACCEPTED'
-    AND (c.requester.id = :userId OR c.receiver.id = :userId)
-""")
-List<Connection> findAcceptedByUserId(@Param("userId") UUID userId);
+    boolean existsByRequester_IdAndReceiver_IdAndStatus(
+        UUID requesterId,
+        UUID receiverId,
+        String status
+    );
 
-boolean existsByRequester_IdAndReceiver_IdAndStatus(
-    UUID requesterId,
-    UUID receiverId,
-    String status
-);
-
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Connection c WHERE c.requester.id = :userId OR c.receiver.id = :userId")
+    void deleteByUserId(@Param("userId") UUID userId);
 }

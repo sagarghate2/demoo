@@ -20,7 +20,7 @@ const mainPlans = [
         duration: 'Forever',
         tag: 'Free',
         description: 'Perfect for individual exploration.',
-        features: ['2 Active Signals', '3 Connection Offers', '3 AI Analysis calls per day'],
+        features: ['6 Active Signals', '3 Connection Offers', '3 AI Analysis calls per day', 'Space Signals', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Rocket,
         highlight: false
     },
@@ -31,7 +31,7 @@ const mainPlans = [
         duration: '7 days',
         tag: 'Entry',
         description: 'Test all premium features.',
-        features: ['5 Active Signals', '10 Connection Offers', '5 AI Analysis calls'],
+        features: ['10 Active Signals', '10 Connection Offers', '5 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Zap,
         highlight: false
     },
@@ -42,7 +42,7 @@ const mainPlans = [
         duration: '7 days',
         tag: 'Entry',
         description: 'Focused growth burst.',
-        features: ['5 Active Signals', '20 Connection Offers', '10 AI Analysis calls'],
+        features: ['20 Active Signals', '20 Connection Offers', '10 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Zap,
         highlight: false
     },
@@ -53,7 +53,7 @@ const mainPlans = [
         duration: '15 days',
         tag: 'Value',
         description: 'Maximize your visibility.',
-        features: ['8 Active Signals', 'Unlimited Offers', '15 AI Analysis calls'],
+        features: ['30 Active Signals', 'Unlimited Offers', '15 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Sparkles,
         highlight: false
     },
@@ -65,7 +65,7 @@ const mainPlans = [
         tag: 'Anchor',
         popular: true,
         description: 'The standard for builders.',
-        features: ['10 Active Signals', 'Unlimited Offers', '20 AI Analysis calls'],
+        features: ['100 Active Signals', 'Unlimited Offers', '20 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report', 'Starto Manual Support'],
         icon: Shield,
         highlight: true
     },
@@ -76,7 +76,7 @@ const mainPlans = [
         duration: '3 months',
         tag: 'Save',
         description: 'Scale your team and reach.',
-        features: ['Unlimited Signals', 'Unlimited Offers', '30 AI Analysis calls'],
+        features: ['Unlimited Signals', 'Unlimited Offers', '30 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report', 'Starto Manual Support'],
         icon: Star,
         highlight: false
     },
@@ -87,7 +87,7 @@ const mainPlans = [
         duration: '6 months',
         tag: 'Save',
         description: 'Deep ecosystem integration.',
-        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis'],
+        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report', 'Starto Manual Support'],
         icon: Rocket,
         highlight: false
     },
@@ -98,7 +98,7 @@ const mainPlans = [
         duration: '12 months',
         tag: 'Long Term',
         description: 'Commit to full dominance.',
-        features: ['Unlimited Everything', 'Legacy Profile Badge', 'Priority Support'],
+        features: ['Unlimited Everything', 'Legacy Profile Badge', 'Priority Support', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report', 'Starto Manual Support'],
         icon: Sparkles,
         highlight: false
     }
@@ -112,7 +112,7 @@ const captainPlans = [
         duration: '1 month',
         tag: 'Leader',
         description: 'Build your own community hub.',
-        features: ['10 Active Signals', 'Unlimited Offers', '20 AI Analysis calls'],
+        features: ['10 Active Signals', 'Unlimited Offers', '20 AI Analysis calls', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Crown,
         highlight: true
     },
@@ -123,7 +123,7 @@ const captainPlans = [
         duration: '12 months',
         tag: 'Elite',
         description: 'Ultimate power for community builders.',
-        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis'],
+        features: ['Unlimited Signals', 'Unlimited Offers', 'Unlimited AI Analysis', 'Connect on WhatsApp', 'Space Signals', 'Verification Badge', 'Nearby Feature', 'Instant Notification', 'Signal Insight', 'AI Execution Real World Report'],
         icon: Star,
         highlight: false
     }
@@ -140,13 +140,13 @@ export default function SubscriptionPage() {
     const [couponCode, setCouponCode] = useState('')
 
     const [backendPlans, setBackendPlans] = useState<any[]>([])
-    const [statusModal, setStatusModal] = useState<{isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string}>({
+    const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'upgrade' | 'duplicate' | 'error', title: string, message: string }>({
         isOpen: false,
         type: 'error',
         title: '',
         message: ''
     })
-    const [toast, setToast] = useState<{isVisible: boolean, message: string, type: 'success' | 'error' | 'info'}>({
+    const [toast, setToast] = useState<{ isVisible: boolean, message: string, type: 'success' | 'error' | 'info' }>({
         isVisible: false,
         message: '',
         type: 'success'
@@ -165,7 +165,7 @@ export default function SubscriptionPage() {
         const loadData = async () => {
             const { data: plans } = await subscriptionApi.getPlans();
             if (plans) setBackendPlans(plans);
-            
+
             const { data: status } = await subscriptionApi.getStatus();
             if (status) {
                 updateUser({ plan: status.plan, planExpiresAt: status.expiresAt });
@@ -205,7 +205,7 @@ export default function SubscriptionPage() {
             // 0. Handle Coupon Flow
             if (targetPlanId === 'PRO_PLUS' && couponCode.trim()) {
                 const { error: couponError } = await subscriptionApi.activateCoupon(targetPlanId, couponCode.trim());
-                
+
                 if (couponError) {
                     setStatusModal({
                         isOpen: true,
@@ -229,7 +229,7 @@ export default function SubscriptionPage() {
                 setSuccessPlan(confirmPlan);
                 setConfirmPlan(null);
                 setCouponCode('');
-                
+
                 const { data: status } = await subscriptionApi.getStatus();
                 if (status) {
                     updateUser({ plan: status.plan, planExpiresAt: status.expiresAt });
@@ -240,7 +240,7 @@ export default function SubscriptionPage() {
 
             // 1. Create order on backend
             const { data: orderData, error: orderError } = await subscriptionApi.createOrder(targetPlanId);
-            
+
             if (orderError || !orderData) {
                 setStatusModal({
                     isOpen: true,
@@ -268,9 +268,9 @@ export default function SubscriptionPage() {
                         razorpayPaymentId: response.razorpay_payment_id,
                         razorpaySignature: response.razorpay_signature,
                     };
-                    
+
                     const { error: verifyError } = await subscriptionApi.verifyPayment(verifyPayload);
-                    
+
                     if (verifyError) {
                         setStatusModal({
                             isOpen: true,
@@ -291,7 +291,7 @@ export default function SubscriptionPage() {
                         });
                         setSuccessPlan(confirmPlan);
                         setConfirmPlan(null);
-                        
+
                         // Refresh user status from backend
                         const { data: status } = await subscriptionApi.getStatus();
                         if (status) {
@@ -388,7 +388,7 @@ export default function SubscriptionPage() {
                                     className="mb-12 p-6 bg-surface-2 backdrop-blur-sm border border-border rounded-3xl flex items-center justify-between shadow-sm"
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                                        <div className="w-12 h-12 bg-surface-2 rounded-2xl flex items-center justify-center shadow-sm">
                                             <BadgeCheck className="w-6 h-6 text-primary" />
                                         </div>
                                         <div>
@@ -421,7 +421,7 @@ export default function SubscriptionPage() {
                             <div className="absolute top-0 right-0 p-20 bg-primary/20 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
                             <div className="relative z-10 flex flex-col lg:flex-row gap-16 items-center">
                                 <div className="max-w-md">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10 mb-6 text-primary">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10 mb-6 text-[#F5F4F0]">
                                         <Crown className="w-4 h-4" />
                                         <span className="text-[10px] font-bold uppercase tracking-widest">Captain Priority</span>
                                     </div>
@@ -448,21 +448,29 @@ export default function SubscriptionPage() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full lg:w-auto shrink-0">
                                     {mergedCaptainPlans.map((plan, idx) => (
-                                        <div key={plan.name} className={`p-8 rounded-[2rem] border transition-all duration-500 hover:scale-105 ${plan.highlight ? 'bg-white text-black border-white shadow-2xl' : 'bg-white/5 border-white/10 hover:border-white/30'}`}>
+                                        <div key={plan.name} className={`p-8 rounded-[2rem] border transition-all duration-500 hover:scale-105 ${plan.highlight ? 'bg-primary text-background border-primary shadow-2xl' : 'bg-white/5 border-white/10 hover:border-white/30'} flex flex-col`}>
                                             <div className="mb-6">
-                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${plan.highlight ? 'bg-black text-white' : 'bg-primary/20 text-primary'}`}>
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${plan.highlight ? 'bg-background text-primary' : 'bg-primary/20 text-primary'}`}>
                                                     <plan.icon className="w-6 h-6" />
                                                 </div>
                                                 <h3 className="text-2xl font-display mb-1">{plan.name}</h3>
                                                 <div className="flex items-baseline gap-1 mb-2">
                                                     <span className="text-3xl font-mono font-bold">₹{plan.price}</span>
-                                                    <span className={`text-sm ${plan.highlight ? 'text-black/50' : 'text-gray-400'}`}>/month</span>
+                                                    <span className={`text-sm ${plan.highlight ? 'text-background/70' : 'text-gray-400'}`}>/month</span>
                                                 </div>
+                                            </div>
+                                            <div className="flex-1 space-y-2.5 mb-8">
+                                                {plan.features.map((f: string) => (
+                                                    <div key={f} className="flex items-center gap-2">
+                                                        <Check className="w-3.5 h-3.5 text-primary opacity-60" />
+                                                        <span className={`text-[12px] leading-tight ${plan.highlight ? 'text-black/70' : 'text-gray-300'}`}>{f}</span>
+                                                    </div>
+                                                ))}
                                             </div>
                                             <button
                                                 onClick={() => handleUpgradeClick(plan.name)}
                                                 disabled={plan.name === 'Explorer'}
-                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20' : plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-white hover:bg-primary/90'} disabled:opacity-50`}
+                                                className={`w-full py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all ${subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20' : plan.highlight ? 'bg-black text-white hover:bg-black/90' : 'bg-primary text-background hover:bg-primary/90'} disabled:opacity-50`}
                                             >
                                                 {subscription?.toUpperCase() === plan.id?.toUpperCase() ? 'Renew Program' : `Join Program`}
                                             </button>
@@ -491,7 +499,7 @@ export default function SubscriptionPage() {
                             initial={{ scale: 0.95, opacity: 0, y: 30 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.95, opacity: 0, y: 30 }}
-                            className="bg-white rounded-[2rem] p-10 max-w-lg w-full shadow-2xl relative overflow-hidden"
+                            className="bg-surface rounded-[2rem] p-10 max-w-lg w-full shadow-2xl relative overflow-hidden"
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="absolute top-0 right-0 p-20 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
@@ -531,12 +539,12 @@ export default function SubscriptionPage() {
                                         <Sparkles className="w-4 h-4 text-primary" />
                                         <span className="text-xs font-bold uppercase tracking-widest text-primary">Ecosystem Coupon</span>
                                     </div>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Enter coupon code" 
+                                    <input
+                                        type="text"
+                                        placeholder="Enter coupon code"
                                         value={couponCode}
                                         onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                        className="w-full bg-white border border-border px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                                        className="w-full bg-surface border border-border px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono text-text-primary"
                                     />
                                     {couponCode === 'GOSTARTO' && (
                                         <p className="text-[10px] text-accent-green font-bold mt-2 uppercase tracking-tight">✨ Valid Coupon Detected: Amount will be waived</p>
@@ -555,7 +563,7 @@ export default function SubscriptionPage() {
                                 <button
                                     onClick={handleConfirmUpgrade}
                                     disabled={isUpgrading}
-                                    className="flex-1 bg-primary text-white py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                    className="flex-1 bg-primary text-background py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                                 >
                                     {isUpgrading ? (
                                         <>
@@ -571,7 +579,7 @@ export default function SubscriptionPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
-            <StatusModal 
+            <StatusModal
                 isOpen={statusModal.isOpen}
                 onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
                 type={statusModal.type}
@@ -579,7 +587,7 @@ export default function SubscriptionPage() {
                 message={statusModal.message}
             />
 
-            <Toast 
+            <Toast
                 isVisible={toast.isVisible}
                 message={toast.message}
                 type={toast.type}
@@ -596,16 +604,16 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.05 }}
-            className={`p-6 rounded-[2rem] border transition-all duration-300 relative group flex flex-col ${isActive ? 'bg-primary/5 border-primary shadow-xl shadow-primary/5' : 'bg-white border-border hover:border-primary/40 hover:shadow-2xl'}`}
+            className={`p-6 rounded-[2rem] border transition-all duration-300 relative group flex flex-col ${isActive ? 'bg-primary/5 border-primary shadow-xl shadow-primary/5' : 'bg-surface border-border hover:border-primary/40 hover:shadow-2xl'}`}
         >
             {plan.tag && (
-                <div className={`absolute -top-2 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest left-1/2 -translate-x-1/2 ${plan.highlight ? 'bg-primary text-white' : 'bg-surface-2 text-text-muted border border-border'}`}>
+                <div className={`absolute -top-2 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest left-1/2 -translate-x-1/2 ${plan.highlight ? 'bg-primary text-background' : 'bg-surface-2 text-text-muted border border-border'}`}>
                     {plan.tag}
                 </div>
             )}
 
             <div className="mb-6 pt-2">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${plan.highlight ? 'bg-primary text-white' : 'bg-surface-2 text-primary'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${plan.highlight ? 'bg-primary text-background' : 'bg-surface-2 text-primary'}`}>
                     <plan.icon className="w-5 h-5" />
                 </div>
                 <h3 className="text-xl font-display mb-1">{plan.name}</h3>
@@ -627,7 +635,7 @@ function PlanCard({ plan, idx, currentPlan, onUpgrade }: { plan: any, idx: numbe
             <button
                 onClick={() => onUpgrade(plan.name)}
                 disabled={plan.name === 'Explorer'}
-                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-primary text-white shadow-lg shadow-black/20 border-transparent' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
+                className={`w-full py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[9px] transition-all shadow-sm ${isActive ? 'bg-primary text-background shadow-lg shadow-black/20 border-transparent' : plan.name === 'Explorer' ? 'bg-surface-2 text-text-muted' : 'bg-black text-white hover:bg-primary active:scale-95'}`}
             >
                 {isActive ? 'Renew Plan' : plan.name === 'Explorer' ? 'Always Free' : 'Choose Plan'}
             </button>

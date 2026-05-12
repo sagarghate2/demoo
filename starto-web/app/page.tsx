@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import './landing.css';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function LandingPage() {
     const [scrolled, setScrolled] = useState(false);
+    const { isAuthenticated, user } = useAuthStore();
 
     useEffect(() => {
         // Nav scroll effect
@@ -68,12 +70,24 @@ export default function LandingPage() {
                     <li><Link href="/subscription">Pricing</Link></li>
                     <li><Link href="/careers">Careers</Link></li>
                 </ul>
-                <div className="nav-badge">
-                    Ecosystem V3
-                </div>
                 <div className="nav-cta">
-                    <Link href="/auth" className="btn-ghost">Sign In</Link>
-                    <Link href="/auth" className="btn-primary">Get Started →</Link>
+                    {isAuthenticated && user ? (
+                        <Link href="/profile" className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1px] text-text-secondary hover:text-primary transition-all">
+                            {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.name || 'User'} className="w-6 h-6 rounded-full" />
+                            ) : (
+                                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-primary">
+                                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                                </div>
+                            )}
+                            <span>{user.name || user.username}</span>
+                        </Link>
+                    ) : (
+                        <>
+                            <Link href="/auth" className="btn-ghost">Sign In</Link>
+                            <Link href="/auth" className="btn-primary">Get Started →</Link>
+                        </>
+                    )}
                 </div>
             </nav>
 
@@ -533,19 +547,35 @@ export default function LandingPage() {
                             <div className="plan-features">
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    3 Help Signals / month
+                                    6 Active Signals
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Basic network access
+                                    3 Connection Offers
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Feed exploration
+                                    3 AI Analysis calls per day
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    1 AI Report / month
+                                    Space Signals
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Nearby Feature
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Instant Notification
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Signal Insight
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    AI Execution Real World Report
                                 </div>
                             </div>
                             <Link href="/auth" className="btn-plan btn-plan-outline">Get Started Free</Link>
@@ -558,23 +588,47 @@ export default function LandingPage() {
                             <div className="plan-features">
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Unlimited Help Signals
+                                    Unlimited Signals
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Full network + direct chat
+                                    Unlimited Offers
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    10 AI Market Reports / month
+                                    Unlimited AI Analysis
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Verified profile badge
+                                    Connect on WhatsApp
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Priority signal placement
+                                    Space Signals
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Verification Badge
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Nearby Feature
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Instant Notification
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Signal Insight
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    AI Execution Real World Report
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Starto Manual Support
                                 </div>
                             </div>
                             <Link href="/subscription" className="btn-plan btn-plan-dark">Upgrade to Growth</Link>
@@ -587,20 +641,47 @@ export default function LandingPage() {
                             <div className="plan-features">
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Everything in Growth
+                                    100 Active Signals
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Unlimited AI Reports
-                                </div>
-
-                                <div className="plan-feature">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Investor introductions
+                                    Unlimited Offers
                                 </div>
                                 <div className="plan-feature">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Dedicated support
+                                    20 AI Analysis calls
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Connect on WhatsApp
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Space Signals
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Verification Badge
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Nearby Feature
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Instant Notification
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Signal Insight
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    AI Execution Real World Report
+                                </div>
+                                <div className="plan-feature">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Starto Manual Support
                                 </div>
                             </div>
                             <Link href="/subscription" className="btn-plan btn-plan-outline">Get Pro</Link>

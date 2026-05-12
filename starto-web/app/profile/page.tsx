@@ -360,7 +360,7 @@ export default function UserProfile() {
         }
     }
 
-    const handleSaveSocial = () => {
+    const handleSaveSocial = async () => {
         if (!isValidUrl(socialForm.linkedinUrl)) {
             setSocialError('Invalid LinkedIn URL')
             return
@@ -376,8 +376,24 @@ export default function UserProfile() {
         }
 
         setSocialError('')
-        updateUser({ linkedinUrl: socialForm.linkedinUrl, twitterUrl: socialForm.twitterUrl, githubUrl: socialForm.githubUrl })
-        setIsEditingSocial(false)
+        
+        try {
+            const { data, error } = await usersApi.updateProfile({
+                linkedinUrl: socialForm.linkedinUrl,
+                twitterUrl: socialForm.twitterUrl,
+                githubUrl: socialForm.githubUrl
+            })
+            
+            if (!error) {
+                updateUser(data || { linkedinUrl: socialForm.linkedinUrl, twitterUrl: socialForm.twitterUrl, githubUrl: socialForm.githubUrl })
+                setIsEditingSocial(false)
+                showToast('Social links updated successfully!')
+            } else {
+                throw new Error(error)
+            }
+        } catch (error: any) {
+            setSocialError('Failed to save: ' + (error.message || error))
+        }
     }
 
     const handleCancelSocial = () => {
@@ -470,7 +486,7 @@ export default function UserProfile() {
                         <div className="flex items-start gap-6">
                             {/* Avatar */}
                             <div className="relative shrink-0">
-                                <div className="w-24 h-24 bg-white rounded-2xl border-2 border-border shadow-lg relative overflow-hidden flex items-center justify-center">
+                                <div className="w-24 h-24 bg-surface rounded-2xl border-2 border-border shadow-lg relative overflow-hidden flex items-center justify-center">
                                     <VerifiedAvatar 
                                         username={isEditing ? editForm.name : (user.name || user.username)}
                                         avatarUrl={isEditing ? editForm.avatarUrl : user.avatarUrl}
@@ -488,15 +504,14 @@ export default function UserProfile() {
                                         <div className="flex flex-col sm:flex-row gap-3">
                                             <div className="flex-1">
                                                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Full Name</label>
-                                                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-surface-1 border border-border p-2 rounded-md font-display text-xl focus:ring-1 focus:ring-primary outline-none" />
+                                                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-surface border border-border p-2 rounded-md font-display text-xl focus:ring-1 focus:ring-primary outline-none text-text-primary" />
                                             </div>
                                             <div className="flex-1 opacity-60">
                                                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Role (Permanent)</label>
-                                                <input value={editForm.role} disabled className="w-full bg-surface-2 border border-border p-2 rounded-md text-sm cursor-not-allowed outline-none" />
+                                                <input value={editForm.role} disabled className="w-full bg-surface-2 border border-border p-2 rounded-md text-sm cursor-not-allowed outline-none text-text-primary" />
                                                 <p className="text-[9px] text-text-muted mt-1 italic">Role cannot be changed after creation.</p>
                                             </div>
                                         </div>
-                                        <div className="flex flex-col sm:flex-row gap-3">
                                         <div className="flex flex-col sm:flex-row gap-3">
                                             <div className="flex-[2] relative">
                                                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block flex justify-between items-center">
@@ -518,7 +533,7 @@ export default function UserProfile() {
                                                             fetchSuggestions(e.target.value);
                                                         }} 
                                                         placeholder="Street address or landmark"
-                                                        className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" 
+                                                        className="w-full bg-surface border border-border p-2 pl-8 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none text-text-primary" 
                                                     />
                                                 </div>
                                                 
@@ -527,7 +542,7 @@ export default function UserProfile() {
                                                         <motion.div
                                                             initial={{ opacity: 0, y: 5 }}
                                                             animate={{ opacity: 1, y: 0 }}
-                                                            className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-xl overflow-hidden"
+                                                            className="absolute z-[60] left-0 right-0 mt-1 bg-surface border border-border rounded-lg shadow-xl overflow-hidden"
                                                         >
                                                             {suggestions.map((feat, idx) => (
                                                                 <button
@@ -535,7 +550,7 @@ export default function UserProfile() {
                                                                     onClick={() => handleSelectSuggestion(feat)}
                                                                     className="w-full text-left px-3 py-2 text-xs hover:bg-surface-2 transition-colors border-b border-border/50 last:border-0"
                                                                 >
-                                                                    <p className="font-bold text-black">{feat.properties.name}</p>
+                                                                    <p className="font-bold text-text-primary">{feat.properties.name}</p>
                                                                     <p className="text-[9px] text-text-muted">
                                                                         {[feat.properties.city, feat.properties.state].filter(Boolean).join(', ')}
                                                                     </p>
@@ -550,19 +565,18 @@ export default function UserProfile() {
                                                 <input 
                                                     value={editForm.city} 
                                                     onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} 
-                                                    className="w-full bg-surface-1 border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none" 
+                                                    className="w-full bg-surface border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none text-text-primary" 
                                                 />
                                             </div>
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1 block">User Handle (editable)</label>
-                                            <input value={editForm.handleBase} onChange={(e) => setEditForm({ ...editForm, handleBase: e.target.value })} className="w-full bg-surface-1 border border-primary/30 p-2 rounded-md font-mono text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. krishna_k88" />
+                                            <input value={editForm.handleBase} onChange={(e) => setEditForm({ ...editForm, handleBase: e.target.value })} className="w-full bg-surface border border-primary/30 p-2 rounded-md font-mono text-sm focus:ring-1 focus:ring-primary outline-none text-text-primary" placeholder="e.g. krishna_k88" />
                                             <p className="text-[10px] text-text-muted mt-1 font-mono">
                                                 Preview: <span className="text-primary font-bold">
                                                     @{editForm.handleBase.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '') || '…'}_{editForm.role.toLowerCase().trim().replace(/[\s/]+/g, '').replace(/[^a-z0-9]+/g, '') || 'role'}
                                                 </span>
                                             </p>
-                                        </div>
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2 block">Select Avatar</label>
@@ -602,10 +616,10 @@ export default function UserProfile() {
                                             </div>
                                             
                                             <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-1 block">Bio</label>
-                                            <textarea value={editForm.bio} onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })} rows={2} className="w-full bg-surface-1 border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none resize-none" />
+                                            <textarea value={editForm.bio} onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })} rows={2} className="w-full bg-surface border border-border p-2 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none resize-none text-text-primary" />
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={handleSave} className="px-5 py-2 bg-primary text-white rounded-md text-sm font-bold flex items-center gap-2 hover:opacity-90"><Check className="w-4 h-4" /> Save</button>
+                                            <button onClick={handleSave} className="px-5 py-2 bg-primary text-background rounded-md text-sm font-bold flex items-center gap-2 hover:opacity-90"><Check className="w-4 h-4" /> Save</button>
                                             <button onClick={handleCancel} className="px-5 py-2 border border-border rounded-md text-sm font-bold flex items-center gap-2 hover:bg-surface-2"><X className="w-4 h-4" /> Cancel</button>
                                         </div>
                                     </div>
@@ -613,7 +627,7 @@ export default function UserProfile() {
                                     <>
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <h1 className="text-2xl font-display">{name}</h1>
-                                            {(isVerified || displayPlan === 'Pro' || displayPlan === 'Founder' || displayPlan === 'TRIAL') && (
+                                            {(isVerified || displayPlan === 'Pro' || displayPlan === 'Founder' || displayPlan === 'TRIAL') && !displayPlan.toLowerCase().includes('explorer') && (
                                                 <span title={`${displayPlan} Verified`} className="relative inline-flex items-center justify-center">
                                                     <BadgeCheck className="w-6 h-6 fill-black text-white" />
                                                 </span>
@@ -621,8 +635,12 @@ export default function UserProfile() {
                                         </div>
                                         <p className="text-text-secondary text-sm font-medium mb-1 flex items-center gap-2">
                                             {role} • {city}
-                                            <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-                                            <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border">{displayPlan} Account</span>
+                                            {displayPlan.toLowerCase() !== 'explorer' && (
+                                                <>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                                    <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded-full uppercase tracking-tighter font-bold border border-border">{displayPlan} Account</span>
+                                                </>
+                                            )}
                                             {user?.planExpiresAt && (
                                                 <span className="text-[10px] text-text-muted font-medium">
                                                     Expires: {formatDate(user.planExpiresAt)}
@@ -634,6 +652,33 @@ export default function UserProfile() {
                                         ) : (
                                             <p className="text-sm text-text-muted italic mb-3">No bio yet — click Edit Profile to add one.</p>
                                         )}
+
+                                        {/* Social Nodes */}
+                                        {(linkedinUrl || twitterUrl || githubUrl || websiteUrl) && (
+                                            <div className="flex gap-2 mb-4">
+                                                {linkedinUrl && (
+                                                    <a href={formatURL(linkedinUrl)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="LinkedIn">
+                                                        <Linkedin className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                {twitterUrl && (
+                                                    <a href={formatURL(twitterUrl)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="Twitter">
+                                                        <Twitter className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                {githubUrl && (
+                                                    <a href={formatURL(githubUrl)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="GitHub">
+                                                        <Github className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                {websiteUrl && (
+                                                    <a href={formatURL(websiteUrl)} target="_blank" rel="noopener noreferrer" className="p-2 bg-surface rounded-xl hover:bg-surface-2 hover:text-primary transition-colors border border-border shadow-sm flex items-center justify-center w-9 h-9" title="Website">
+                                                        <Globe className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <div className="flex flex-wrap gap-4 sm:gap-8 mb-6 mt-4 p-4 bg-surface-2 rounded-2xl border border-border">
                                             <div>
                                                 <p className="text-[9px] uppercase font-bold text-text-muted mb-1">Signals Left</p>
@@ -743,7 +788,7 @@ export default function UserProfile() {
                                             >
                                                 <div className="flex justify-between items-start mb-4">
                                                     <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
-                                                    <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">● Active</span>
+                                                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest">● Active</span>
                                                 </div>
                                                 <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{signal.title}</h3>
                                                 <p className="text-sm text-text-secondary line-clamp-2">{signal.description}</p>
@@ -786,7 +831,7 @@ export default function UserProfile() {
                                             <div className="flex justify-between items-start mb-4">
                                                 <span className="text-[10px] px-2 py-0.5 bg-text-muted text-white rounded-full uppercase font-bold tracking-widest">{signal.category}</span>
                                                 {signal.status === 'Solved' ? (
-                                                    <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">✓ Completed</span>
+                                                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest">✓ Completed</span>
                                                 ) : (
                                                     <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Expired</span>
                                                 )}
@@ -815,8 +860,8 @@ export default function UserProfile() {
                                             className="p-6 bg-surface-2 rounded-2xl border border-border group hover:border-primary transition-all mb-4 cursor-pointer"
                                         >
                                             <div className="flex justify-between items-start mb-4">
-                                                <span className="text-[10px] px-2 py-0.5 bg-black text-white rounded-full uppercase font-bold tracking-widest">{r.signalCategory}</span>
-                                                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Responded</span>
+                                                <span className="text-[10px] px-2 py-0.5 bg-primary text-background rounded-full uppercase font-bold tracking-widest">{r.signalCategory}</span>
+                                                <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Responded</span>
                                             </div>
                                             <h3 className="text-xl font-display mb-2 group-hover:text-primary transition-colors">{r.signalTitle}</h3>
                                             <p className="text-xs text-text-muted">Signal by @{r.signalUsername}</p>
@@ -840,18 +885,18 @@ export default function UserProfile() {
                                 ) : (
                                     <div className="space-y-3">
                                         {dbPayments.map((record: any) => (
-                                            <div key={record.id} className="p-6 bg-white border border-border rounded-3xl group hover:border-black transition-all flex items-center justify-between shadow-sm hover:shadow-md">
+                                            <div key={record.id} className="p-6 bg-surface-2 border border-border rounded-3xl group hover:border-primary transition-all flex items-center justify-between shadow-sm hover:shadow-md">
                                                 <div className="flex items-center gap-5">
                                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${
-                                                        record.status === 'Successful' ? 'bg-black text-white' : 'bg-red-50 text-red-500'
+                                                        record.status === 'Successful' ? 'bg-primary text-background' : 'bg-surface-2 text-text-muted'
                                                     }`}>
                                                         {record.status === 'Successful' ? <Check className="w-6 h-6" /> : <X className="w-6 h-6" />}
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-3 mb-1">
-                                                            <h4 className="font-display text-xl tracking-tight text-black">{record.planName}</h4>
+                                                            <h4 className="font-display text-xl tracking-tight text-text-primary">{record.planName}</h4>
                                                             <div className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-[0.2em] border ${
-                                                                record.status === 'Successful' ? 'border-black bg-black text-white' : 'border-red-200 bg-red-50 text-red-600'
+                                                                record.status === 'Successful' ? 'border-primary bg-primary text-background' : 'border-border bg-surface-2 text-text-muted'
                                                             }`}>
                                                                 {record.status}
                                                             </div>
@@ -864,8 +909,8 @@ export default function UserProfile() {
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="flex items-baseline justify-end gap-0.5">
-                                                        <span className="text-xs font-bold text-black">{record.currency}</span>
-                                                        <span className="text-2xl font-mono font-bold text-black tracking-tighter">{record.amount}</span>
+                                                        <span className="text-xs font-bold text-text-primary">{record.currency}</span>
+                                                        <span className="text-2xl font-mono font-bold text-text-primary tracking-tighter">{record.amount}</span>
                                                     </div>
                                                     <p className="text-[9px] text-text-muted font-bold uppercase tracking-[0.2em] mt-1">Transaction Settled</p>
                                                 </div>
@@ -893,8 +938,16 @@ export default function UserProfile() {
                                     type: 'confirm',
                                     title: 'Delete Account?',
                                     message: 'Are you absolutely sure you want to delete your account? This action is permanent and cannot be undone.',
-                                    onConfirm: () => {
+                                    onConfirm: async () => {
                                         const store = useLocalUserStore.getState()
+                                        
+                                        // Call backend API
+                                        const { error } = await usersApi.deleteAccount();
+                                        if (error) {
+                                            setToast({ isVisible: true, message: error, type: 'error' });
+                                            return;
+                                        }
+
                                         if (user) {
                                             store.deleteUser(user.email)
                                         } else {
@@ -908,7 +961,7 @@ export default function UserProfile() {
                                     }
                                 })
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3 border border-red-200/50 text-red-500 rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-red-500/10 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3 border border-border text-text-muted rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-surface-2 transition-colors"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                             Delete Account
@@ -918,7 +971,7 @@ export default function UserProfile() {
 
                 {/* Right Sidebar - Social Links */}
                 <aside className="hidden xl:block w-[320px] p-8 space-y-8">
-                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+                    <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-display text-xl">Social Nodes</h3>
                             {!isEditingSocial ? (
@@ -931,7 +984,7 @@ export default function UserProfile() {
                                 </button>
                             ) : (
                                 <div className="flex gap-2">
-                                    <button onClick={handleSaveSocial} className="p-1.5 rounded-lg bg-primary text-white hover:opacity-90 transition-all" title="Save">
+                                    <button onClick={handleSaveSocial} className="p-1.5 rounded-lg bg-primary text-background hover:opacity-90 transition-all" title="Save">
                                         <Check className="w-4 h-4" />
                                     </button>
                                     <button onClick={handleCancelSocial} className="p-1.5 rounded-lg border border-border hover:bg-surface-2 transition-all" title="Cancel">
@@ -956,7 +1009,7 @@ export default function UserProfile() {
                                             value={socialForm.linkedinUrl}
                                             onChange={(e) => { setSocialForm({ ...socialForm, linkedinUrl: e.target.value }); if (socialError) setSocialError(''); }}
                                             placeholder="https://linkedin.com/in/yourprofile"
-                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-black"
+                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-text-primary"
                                         />
                                     </div>
                                 </div>
@@ -968,7 +1021,7 @@ export default function UserProfile() {
                                             value={socialForm.twitterUrl}
                                             onChange={(e) => { setSocialForm({ ...socialForm, twitterUrl: e.target.value }); if (socialError) setSocialError(''); }}
                                             placeholder="https://twitter.com/yourhandle"
-                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-black"
+                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-text-primary"
                                         />
                                     </div>
                                 </div>
@@ -980,7 +1033,7 @@ export default function UserProfile() {
                                             value={socialForm.githubUrl}
                                             onChange={(e) => { setSocialForm({ ...socialForm, githubUrl: e.target.value }); if (socialError) setSocialError(''); }}
                                             placeholder="https://github.com/yourusername"
-                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-black"
+                                            className="w-full bg-surface-1 border border-border p-2 pl-8 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none text-text-primary"
                                         />
                                     </div>
                                 </div>
@@ -998,7 +1051,7 @@ export default function UserProfile() {
                                         </div>
                                     </Link>
                                 ) : (
-                                    <div className="flex items-center gap-4 opacity-40 text-black">
+                                    <div className="flex items-center gap-4 text-text-muted">
                                         <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border"><Linkedin className="w-5 h-5" /></div>
                                         <p className="text-xs italic">No LinkedIn added</p>
                                     </div>
@@ -1014,7 +1067,7 @@ export default function UserProfile() {
                                         </div>
                                     </Link>
                                 ) : (
-                                    <div className="flex items-center gap-4 opacity-40 text-black">
+                                    <div className="flex items-center gap-4 text-text-muted">
                                         <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border"><Twitter className="w-5 h-5" /></div>
                                         <p className="text-xs italic">No Twitter added</p>
                                     </div>
@@ -1030,7 +1083,7 @@ export default function UserProfile() {
                                         </div>
                                     </Link>
                                 ) : (
-                                    <div className="flex items-center gap-4 opacity-40 text-black">
+                                    <div className="flex items-center gap-4 text-text-muted">
                                         <div className="w-10 h-10 bg-surface-2 rounded-xl flex items-center justify-center border border-border"><Github className="w-5 h-5" /></div>
                                         <p className="text-xs italic">No GitHub added</p>
                                     </div>
@@ -1040,19 +1093,19 @@ export default function UserProfile() {
                     </div>
 
                     {/* Upgrade CTA */}
-                    <div className="bg-primary p-6 rounded-2xl text-white shadow-xl relative overflow-hidden group">
+                    <div className="bg-primary p-6 rounded-2xl text-background shadow-xl relative overflow-hidden group">
                         <div className="relative z-10">
                             <h3 className="font-display text-xl mb-2">
                                 {displayPlan === 'Free' ? 'Upgrade Your Plan' : 'Manage Your Plan'}
                             </h3>
-                            <p className="text-white/70 text-sm mb-6 leading-relaxed">
+                            <p className="text-background/70 text-sm mb-6 leading-relaxed">
                                 {displayPlan === 'Free'
                                     ? 'Unlock verified badges, unlimited signals, and AI market intelligence.'
                                     : `View your current benefits, usage, and manage your subscription.${user?.planExpiresAt ? ` Plan expires on ${formatDate(user.planExpiresAt)}.` : ''}`}
                             </p>
                             <button
                                 onClick={() => router.push('/subscription')}
-                                className="w-full bg-white text-black py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-surface-2 transition-colors"
+                                className="w-full bg-background text-primary py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:opacity-90 transition-colors"
                             >
                                 {displayPlan === 'Free' ? 'Upgrade Now →' : 'View Plan →'}
                             </button>
@@ -1060,7 +1113,7 @@ export default function UserProfile() {
                         <Signal className="absolute -bottom-10 -right-10 w-48 h-48 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-1000" />
                     </div>
 
-                    <div className="bg-white border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
+                    <div className="bg-surface border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
                         <div className="absolute top-3 right-3">
                             <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
                                 Coming Soon

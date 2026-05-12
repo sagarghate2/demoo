@@ -131,6 +131,28 @@ export default function StartoAIExplore() {
 
     return (
         <div className="min-h-screen bg-background flex justify-center">
+            <style>{`
+                @media print {
+                    body, .bg-background, main {
+                        background-color: white !important;
+                        color: black !important;
+                    }
+                    .bg-surface, .bg-surface-1, .bg-surface-2, .bg-primary {
+                        background-color: white !important;
+                        color: black !important;
+                        border-color: #e5e7eb !important;
+                    }
+                    .text-text-primary, .text-text-secondary, .text-text-muted, .text-primary, .text-background {
+                        color: black !important;
+                    }
+                    .border-border {
+                        border-color: #e5e7eb !important;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                }
+            `}</style>
             <div className="max-w-[1400px] w-full flex flex-col md:flex-row pb-16 md:pb-0">
                 <div className="no-print">
                     <Sidebar />
@@ -139,7 +161,7 @@ export default function StartoAIExplore() {
                 <main className="flex-1 w-full p-4 md:p-6 lg:p-12 overflow-y-auto">
                     <header className="mb-12">
                         <div className="flex flex-wrap items-center gap-3 mb-4">
-                            <div className="inline-flex items-center gap-2 bg-primary text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                            <div className="inline-flex items-center gap-2 bg-primary text-background px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
                                 Powered by GPT-4o + Gemini
                             </div>
                             {usage && (
@@ -157,7 +179,7 @@ export default function StartoAIExplore() {
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="bg-white border border-border rounded-2xl shadow-xl overflow-hidden"
+                            className="bg-surface border border-border rounded-2xl shadow-xl overflow-hidden"
                         >
                             <div className="grid grid-cols-1 md:grid-cols-2">
                                 <div className="p-8 space-y-6 border-r border-border">
@@ -195,7 +217,7 @@ export default function StartoAIExplore() {
                                 <div className="p-8 bg-surface-2 flex flex-col justify-center">
                                     <div className="space-y-4 mb-10">
                                         <div className="flex gap-4">
-                                            <div className="bg-primary text-white p-2 rounded-md h-fit">
+                                            <div className="bg-primary text-background p-2 rounded-md h-fit">
                                                 <Search className="w-4 h-4" />
                                             </div>
                                             <div>
@@ -204,7 +226,7 @@ export default function StartoAIExplore() {
                                             </div>
                                         </div>
                                         <div className="flex gap-4">
-                                            <div className="bg-primary text-white p-2 rounded-md h-fit">
+                                            <div className="bg-primary text-background p-2 rounded-md h-fit">
                                                 <TrendingUp className="w-4 h-4" />
                                             </div>
                                             <div>
@@ -216,7 +238,7 @@ export default function StartoAIExplore() {
                                     <button
                                         onClick={handleAnalyze}
                                         disabled={analyzing || !location || !industry}
-                                        className="w-full bg-primary text-white py-4 rounded-md font-bold uppercase tracking-widest flex items-center justify-center gap-3 hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden relative"
+                                        className="w-full bg-primary text-background py-4 rounded-md font-bold uppercase tracking-widest flex items-center justify-center gap-3 hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden relative"
                                     >
                                         <AnimatePresence mode="wait">
                                             <motion.span
@@ -287,12 +309,12 @@ export default function StartoAIExplore() {
                     {showResults && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="md:col-span-2 space-y-6">
-                                <div className="bg-white border border-border p-8 rounded-2xl">
+                                <div className="bg-surface border border-border p-8 rounded-2xl">
                                     <div className="flex items-center justify-between mb-8">
                                         <h3 className="text-2xl font-display flex items-center gap-3">
                                             <BarChart4 className="w-6 h-6" /> Market Demand
                                         </h3>
-                                        <div className="text-4xl font-mono text-accent-green">
+                                        <div className="text-4xl font-mono text-primary">
                                             {results?.marketDemand?.score || '0'} <span className="text-lg text-text-muted">/ 10</span>
                                         </div>
                                     </div>
@@ -300,20 +322,11 @@ export default function StartoAIExplore() {
                                         <p className="text-sm text-text-secondary border-l-2 border-primary pl-4">
                                             {results?.marketDemand?.marketSummary || `The ${industry || 'AgriTech'} sector in ${location || 'Pune'} shows strong growth indicators.`}
                                         </p>
-                                        <div className="grid grid-cols-2 gap-4 pt-4">
-                                            <div className="bg-surface-2 p-4 rounded-md">
-                                                <span className="text-[10px] uppercase text-text-muted font-bold block mb-1">Growth Index</span>
-                                                <span className="text-sm font-semibold">{results?.marketDemand?.growthIndex || 'Growing steadily (+10.2% monthly)'}</span>
-                                            </div>
-                                            <div className="bg-surface-2 p-4 rounded-md">
-                                                <span className="text-[10px] uppercase text-text-muted font-bold block mb-1">Market Saturation</span>
-                                                <span className="text-sm font-semibold">{results?.marketDemand?.marketSaturation || 'Plenty of room (only 15% filled)'}</span>
-                                            </div>
-                                        </div>
+
                                     </div>
                                 </div>
 
-                                <div className="bg-white border border-border p-8 rounded-2xl">
+                                <div className="bg-surface border border-border p-8 rounded-2xl">
                                     <h3 className="text-2xl font-display mb-8 flex items-center gap-3">
                                         <AlertTriangle className="w-6 h-6" /> Risk Analysis
                                     </h3>
@@ -339,7 +352,7 @@ export default function StartoAIExplore() {
                                     </div>
                                 </div>
 
-                                <div className="bg-white border border-border p-8 rounded-2xl">
+                                <div className="bg-surface border border-border p-8 rounded-2xl">
                                     <h3 className="text-2xl font-display mb-8 flex items-center gap-3">
                                         <Briefcase className="w-6 h-6" /> Competitive Landscape
                                     </h3>
@@ -354,11 +367,13 @@ export default function StartoAIExplore() {
                                         <tbody className="divide-y divide-border">
                                             {(results?.competitors || []).slice(0, (() => {
                                                 const plan = user?.plan?.toUpperCase() || 'EXPLORER';
+                                                console.log('[DEBUG] Explore Page - User Plan:', plan, 'Total Competitors available:', results?.competitors?.length);
                                                 if (plan === 'EXPLORER') return 3; // Show only 3 for Explorer
                                                 if (plan === 'TRIAL') return 5;
                                                 if (plan === 'SPRINT') return 6;
                                                 if (plan === 'BOOST') return 8;
                                                 if (plan === 'PRO') return 10;
+                                                if (plan === 'PRO_PLUS') return 20;
                                                 return 12;
                                             })()).map((c, idx) => (
                                                 <tr key={idx} className="group hover:bg-surface-2">
@@ -387,6 +402,7 @@ export default function StartoAIExplore() {
                                                 if (plan === 'SPRINT') return 6;
                                                 if (plan === 'BOOST') return 8;
                                                 if (plan === 'PRO') return 10;
+                                                if (plan === 'PRO_PLUS') return 20;
                                                 return 12;
                                             })() && (
                                                 <tr>
@@ -408,9 +424,25 @@ export default function StartoAIExplore() {
                                                     </td>
                                                 </tr>
                                             )}
+                                            {results?.competitors && results.competitors.length > 0 && results.competitors.length <= (() => {
+                                                const plan = user?.plan?.toUpperCase() || 'EXPLORER';
+                                                if (plan === 'EXPLORER') return 3;
+                                                if (plan === 'TRIAL') return 5;
+                                                if (plan === 'SPRINT') return 6;
+                                                if (plan === 'BOOST') return 8;
+                                                if (plan === 'PRO') return 10;
+                                                if (plan === 'PRO_PLUS') return 20;
+                                                return 12;
+                                            })() && (
+                                                <tr>
+                                                    <td colSpan={3} className="py-4 text-center text-xs text-text-muted italic">
+                                                        Only this much competitors found in this area.
+                                                    </td>
+                                                </tr>
+                                            )}
                                             {(!results?.competitors || results.competitors.length === 0) && (
                                                 <tr>
-                                                    <td colSpan={3} className="py-8 text-center text-sm text-text-muted italic">No direct competitors found in this region.</td>
+                                                    <td colSpan={3} className="py-8 text-center text-sm text-text-muted italic">No direct competitors found in this area. This might be a great opportunity to capture the market!</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -419,19 +451,19 @@ export default function StartoAIExplore() {
                             </motion.section>
 
                             <aside className="space-y-6 report-sidebar">
-                                <div className="bg-primary text-white p-8 rounded-2xl overflow-hidden relative print:bg-white print:text-black print:border print:border-border">
+                                <div className="bg-primary text-background p-8 rounded-2xl overflow-hidden relative print:bg-white print:text-black print:border print:border-border">
                                     <FileText className="w-12 h-12 text-white/10 absolute -top-2 -right-2 print:hidden" />
                                     <h4 className="text-lg font-display mb-4">90-Day Execution Plan</h4>
-                                    <div className="space-y-6 relative">
+                                    <div className="space-y-6 relative text-background">
                                         {(results?.actionPlan?.map((phase, pIdx) => (
                                             <div key={pIdx} className="space-y-3">
-                                                <span className="text-[10px] uppercase text-white/40 block print:text-text-muted">{phase.range}</span>
+                                                <span className="text-[10px] uppercase text-background/60 block print:text-text-muted">{phase.range}</span>
                                                 {phase.tasks.map((task, tIdx) => (
-                                                    <div key={tIdx} className="border-l border-white/20 pl-4 relative print:border-border">
+                                                    <div key={tIdx} className="border-l border-background/20 pl-4 relative print:border-border">
                                                         {tIdx === 0 ? (
                                                             <CheckCircle2 className="w-4 h-4 text-accent-green absolute -left-2 top-0 bg-primary print:bg-white" />
                                                         ) : (
-                                                            <div className="w-3 h-3 border border-white/20 rounded-full absolute -left-[6.5px] top-1 bg-primary print:bg-white print:border-border" />
+                                                            <div className="w-3 h-3 border border-background/20 rounded-full absolute -left-[6.5px] top-1 bg-primary print:bg-white print:border-border" />
                                                         )}
                                                         <p className="text-xs">{task}</p>
                                                     </div>
@@ -463,9 +495,9 @@ export default function StartoAIExplore() {
                                 <div className="bg-surface-2 border border-border p-6 rounded-2xl no-print">
                                     <h4 className="font-display mb-4">Need More Detail?</h4>
                                     <p className="text-xs text-text-secondary mb-6">Upgrade to Studio to unlock team access and unlimited real-time market data exports.</p>
-                                    <button className="w-full py-3 bg-white border border-border rounded-md text-sm font-bold hover:bg-white/50 transition-all">
+                                    <Link href="/subscription" className="w-full py-3 bg-primary text-background border border-border rounded-md text-sm font-bold hover:opacity-90 transition-all flex items-center justify-center">
                                         Upgrade Plan
-                                    </button>
+                                    </Link>
                                 </div>
                             </aside>
                         </div>
@@ -523,7 +555,7 @@ export default function StartoAIExplore() {
                                 </button>
                                 <Link
                                     href="/subscription"
-                                    className="flex-1 bg-primary text-white py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                    className="flex-1 bg-primary text-background py-4 rounded-2xl text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                                 >
                                     View Plans
                                 </Link>

@@ -176,13 +176,13 @@ public class ConnectionController {
         if (user == null) return ResponseEntity.status(401).build();
         Plan plan = user.getPlan();
 
-        if (!planService.hasWhatsappAccess(plan)) {
+        Connection connection = connectionService.getConnectionById(connectionId);
+
+        if (!planService.hasWhatsappAccess(plan) && !"ACCEPTED".equalsIgnoreCase(connection.getStatus())) {
             return ResponseEntity.status(403).body(
                     Map.of("error", "Upgrade your plan to unlock WhatsApp contact")
             );
         }
-
-        Connection connection = connectionService.getConnectionById(connectionId);
 
         // Security check
         if (!connection.getRequester().getId().equals(user.getId()) &&

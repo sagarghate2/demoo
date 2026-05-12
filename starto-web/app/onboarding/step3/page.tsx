@@ -38,7 +38,7 @@ export default function OnboardingStep3() {
 
                 <button
                     disabled={!selected}
-                    className={`w-full py-4 rounded-md font-medium transition-all ${selected ? 'bg-primary text-white hover:opacity-90' : 'bg-surface-2 text-text-muted cursor-not-allowed'
+                    className={`w-full py-4 rounded-md font-medium transition-all ${selected ? 'bg-primary text-background hover:opacity-90' : 'bg-surface-2 text-text-muted cursor-not-allowed'
                         }`}
                 >
                     Continue

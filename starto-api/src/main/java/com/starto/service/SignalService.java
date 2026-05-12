@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.stream.Collectors;
 import com.starto.repository.CommentRepository;
+import com.starto.repository.OfferRepository;
 
 import org.springframework.security.access.AccessDeniedException;
 
@@ -55,6 +56,7 @@ public class SignalService {
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
     private final NotificationService notificationService;
+    private final OfferRepository offerRepository;
 
     private static boolean syncedResponseCounts = false;
 
@@ -67,7 +69,19 @@ public class SignalService {
     public Signal createSignal(Signal signal) {
         log.info("[DEBUG] Entering createSignal method. Type: {}, Category: {}", signal.getType(), signal.getCategory());
         if (signal.getExpiresAt() == null) {
-            signal.setExpiresAt(OffsetDateTime.now().plusDays(7));
+            int days = 7;
+            String strength = signal.getSignalStrength();
+            if (strength != null) {
+                try {
+                    String numberOnly = strength.replaceAll("[^0-9]", "");
+                    if (!numberOnly.isEmpty()) {
+                        days = Integer.parseInt(numberOnly);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to parse days from strength: {}", strength);
+                }
+            }
+            signal.setExpiresAt(OffsetDateTime.now().plusDays(days));
         }
         Signal saved = signalRepository.save(signal);
         log.info("[DEBUG] Signal saved to DB. ID: {}", saved.getId());
@@ -82,12 +96,12 @@ public class SignalService {
         log.info("[DEBUG] Checking broadcast. Type: '{}', Category: '{}', isInstantHelp: {}", type, category, isInstantHelp);
         
         if (isInstantHelp) {
-            List<User> allUsers = userRepository.findAll();
+            List<User> talentUsers = userRepository.findByRoleIgnoreCase("TALENT");
             UUID creatorId = saved.getUser().getId();
-            log.info("[DEBUG] instant_help detected! Found {} users in DB. Creator: {}", allUsers.size(), creatorId);
+            log.info("[DEBUG] instant_help detected! Found {} talent users in DB. Creator: {}", talentUsers.size(), creatorId);
             
             int notified = 0;
-            for (User u : allUsers) {
+            for (User u : talentUsers) {
                 String uIdStr = u.getId().toString();
                 String cIdStr = creatorId.toString();
                 
@@ -434,7 +448,11 @@ for (int i = 6; i >= 0; i--) {
     @CacheEvict(value = "signalCache", key = "#id"),
     @CacheEvict(value = "signalCache", key = "'activeSignals'")
 })
+    @Transactional
     public void deleteSignal(UUID id) {
+        offerRepository.deleteBySignalId(id);
+        commentRepository.deleteBySignalId(id);
+        signalViewRepository.deleteBySignalId(id);
         signalRepository.deleteById(id);
     }
 
@@ -607,6 +625,9 @@ public String deletePost(UUID id, User user) {
             throw new RuntimeException("Forbidden: You don't own this signal");
         }
 
+        offerRepository.deleteBySignalId(id);
+        commentRepository.deleteBySignalId(id);
+        signalViewRepository.deleteBySignalId(id);
         signalRepository.delete(signal);
         return "Signal deleted successfully";
     }

@@ -54,7 +54,7 @@ export default function NetworkModal({ isOpen, onClose, connections, currentUser
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+                        className="relative w-full max-w-lg bg-surface rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
                     >
                         {/* Header */}
                         <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-surface-1">
@@ -71,7 +71,7 @@ export default function NetworkModal({ isOpen, onClose, connections, currentUser
                             </div>
                             <button 
                                 onClick={onClose}
-                                className="p-2 hover:bg-surface-2 rounded-full transition-colors text-text-muted hover:text-black"
+                                className="p-2 hover:bg-surface-2 rounded-full transition-colors text-text-muted hover:text-text-primary"
                             >
                                 <X className="w-5 h-5" />
                             </button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn, Bell, Info, ShieldCheck } from 'lucide-react'
+import { Home, Zap, BarChart3, Users, MapPin, Settings, LogIn, Bell, Info, ShieldCheck, Sun, Moon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
@@ -10,6 +10,7 @@ import { useSignalStore } from '@/store/useSignalStore'
 import { useNetworkStore } from '@/store/useNetworkStore'
 import { signalsApi, notificationsApi } from '@/lib/apiClient'
 import VerifiedAvatar from './VerifiedAvatar'
+import { useTheme } from '@/components/ThemeProvider'
 
 const ADMIN_EMAIL = "krishnamurthikm07@gmail.com";
 
@@ -27,10 +28,11 @@ const navItems = [
 export default function Sidebar() {
     const pathname = usePathname()
     const { isAuthenticated, user } = useAuthStore()
+    const { theme, toggleTheme } = useTheme()
 
     const isAdmin = !!isAuthenticated && !!user && user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-    const displayNavItems = isAdmin 
+    const displayNavItems = isAdmin
         ? [...navItems.slice(0, -1), { icon: ShieldCheck, label: 'Admin', href: '/admin' }, navItems[navItems.length - 1]]
         : navItems;
     const { signals } = useSignalStore()
@@ -104,8 +106,8 @@ export default function Sidebar() {
             <nav className="flex-1 space-y-1">
                 {displayNavItems.map((item) => {
                     const Icon = item.icon
-                    const isActive = item.href === '/profile' 
-                        ? pathname === '/profile' 
+                    const isActive = item.href === '/profile'
+                        ? pathname === '/profile'
                         : pathname === item.href || (item.href !== '/feed' && pathname.startsWith(item.href))
 
                     return (
@@ -113,7 +115,7 @@ export default function Sidebar() {
                             key={item.label}
                             href={item.href}
                             className={`flex justify-between items-center px-3 py-2.5 rounded-md transition-all ${isActive
-                                ? 'bg-primary text-white shadow-sm shadow-black/5'
+                                ? 'bg-primary text-background shadow-sm shadow-black/5'
                                 : 'text-text-secondary hover:bg-surface-2 hover:text-primary'
                                 }`}
                         >
@@ -150,24 +152,31 @@ export default function Sidebar() {
                     </div>
                 </div>
 
+                {/* Theme Toggle */}
+                <button
+                    onClick={toggleTheme}
+                    className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-surface-2 transition-all text-text-secondary hover:text-primary mb-2"
+                >
+                    {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+                </button>
+
                 {/* Backend connection status */}
-                <div className={`mb-3 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${
-                    backendStatus === 'live'
-                        ? 'text-primary bg-surface-2'
-                        : backendStatus === 'offline'
+                <div className={`mb-3 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${backendStatus === 'live'
+                    ? 'text-primary bg-surface-2'
+                    : backendStatus === 'offline'
                         ? 'text-orange-500 bg-orange-50'
                         : 'text-text-muted bg-surface-2'
-                }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                        backendStatus === 'live' ? 'bg-primary animate-pulse'
+                    }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'live' ? 'bg-primary animate-pulse'
                         : backendStatus === 'offline' ? 'bg-orange-400'
-                        : 'bg-gray-400 animate-pulse'
-                    }`} />
+                            : 'bg-gray-400 animate-pulse'
+                        }`} />
                     {backendStatus === 'live' ? 'API Live' : backendStatus === 'offline' ? 'Local Mode' : 'Checking…'}
                 </div>
 
-                <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-pointer">
-                    <Image src="/logo.png" alt="Starto Logo" width={20} height={20} className="invert" />
+                <div className="flex items-center gap-2 transition-all cursor-pointer">
+                    <Image src="/about-logo.png" alt="Starto Logo" width={20} height={20} />
                     <span className="text-[10px] font-bold tracking-widest uppercase">Starto V3</span>
                 </div>
             </div>

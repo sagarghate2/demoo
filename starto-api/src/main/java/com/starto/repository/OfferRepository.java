@@ -39,7 +39,16 @@ List<Offer> findAllByReceiverId(@Param("receiverId") UUID receiverId);
 
 long countByRequesterId(UUID requesterId);
 long countByRequesterIdAndCreatedAtAfter(UUID requesterId, OffsetDateTime timestamp);
+
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Modifying
     void deleteBySignalId(UUID signalId);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByRequesterId(UUID requesterId);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByReceiverId(UUID receiverId);
 }

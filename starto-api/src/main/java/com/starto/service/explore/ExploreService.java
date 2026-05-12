@@ -76,6 +76,8 @@ public class ExploreService {
                 if (realCompetitors != null && !realCompetitors.isEmpty()) {
                     response.setCompetitors(realCompetitors);
                     System.out.println("INJECTED " + realCompetitors.size() + " REAL COMPETITORS FROM GOOGLE MAPS");
+                } else {
+                    response.setCompetitors(new java.util.ArrayList<>());
                 }
             } catch (Exception e) {
                 log.warn("Failed to inject real competitors", e);
@@ -123,19 +125,17 @@ public class ExploreService {
                 " at " + req.getStage() + " stage. " +
                 "Target customer: " + req.getTargetCustomer() + ". " +
                 "Location context: " + locationData + ".\n\n" +
-                "IMPORTANT: Speak in a natural, conversational, and professional tone that a normal person can easily understand. Avoid overly technical jargon.\n" +
+                "IMPORTANT: Use very simple English. It should be understandable by a 12-year-old. Avoid complex words and business jargon. Explain things simply.\n" +
                 "IMPORTANT: Provide REAL and VALID government schemes, subsidies, or policies available for this specific industry and location. Do not hallucinate.\n\n" +
                 "Return ONLY a valid JSON object with the following structure (no other text, no markdown):\n" +
                 "{\n" +
                 "  \"marketDemand\": {\n" +
                 "    \"score\": <1-10>,\n" +
-                "    \"growthIndex\": \"e.g. Growing steadily (+15% monthly)\",\n" +
-                "    \"marketSaturation\": \"e.g. Plenty of room (only 15% filled)\",\n" +
-                "    \"marketSummary\": \"A clear, conversational summary of why the demand is high or low (written like a person talking to a founder)\",\n" +
+                "    \"marketSummary\": \"A clear, simple summary of why the demand is high or low (written like a person talking to a founder)\",\n" +
                 "    \"drivers\": [\"driver1\", \"driver2\"],\n" +
                 "    \"sources\": [\"source1\", \"source2\"]\n" +
                 "  },\n" +
-                "  \"competitors\": [{\"name\": \"\", \"location\": \"\", \"stage\": \"\", \"description\": \"\", \"threatLevel\": \"LOW|MEDIUM|HIGH\"}],\n" +
+                "  \"competitors\": [], // Leave empty. Competitors are fetched from real-time data.\n" +
                 "  \"risks\": [{\"title\": \"\", \"description\": \"\", \"severity\": \"LOW|MEDIUM|HIGH\", \"mitigation\": \"\"}],\n" +
                 "  \"budgetFeasibility\": {\"canBuild\": [\"item1\", \"item2\"], \"actualNeed\": [\"item1\", \"item2\"], \"verdict\": \"Feasible|Tight|Infeasible\"},\n" +
                 "  \"governmentSchemes\": [{\"name\": \"Name of scheme\", \"body\": \"Governing body\", \"benefits\": \"Detailed benefits\", \"eligibility\": \"Who can apply\", \"applyUrl\": \"Official link if known\"}],\n" +

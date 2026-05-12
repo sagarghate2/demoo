@@ -8,6 +8,28 @@
   --font-display: 'DM Serif Display';
   --font-body: 'DM Sans';
   --font-mono: 'JetBrains Mono';
+
+  /* Light Mode Colors */
+  --primary: #0A0A0A;
+  --background: #F5F4F0;
+  --surface: #FFFFFF;
+  --surface-2: #F0EFEB;
+  --border: #E0DFDB;
+  --text-primary: #0A0A0A;
+  --text-secondary: #6B6B6B;
+  --text-muted: #9B9B9B;
+}
+
+.dark {
+  /* Dark Mode Colors (Inverted) */
+  --primary: #F5F4F0;
+  --background: #0A0A0A;
+  --surface: #1A1A1A;
+  --surface-2: #2A2A2A;
+  --border: #333333;
+  --text-primary: #F5F4F0;
+  --text-secondary: #AAAAAA;
+  --text-muted: #777777;
 }
 
 body {
@@ -80,6 +102,11 @@ h1, h2, h3, h4, .font-display {
   }
 
   main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  main {
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
@@ -108,4 +135,15 @@ h1, h2, h3, h4, .font-display {
   .print-only {
     display: block !important;
   }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

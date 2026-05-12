@@ -33,7 +33,7 @@ export default function OnboardingStep2() {
                                 key={role.id}
                                 onClick={() => setSelected(role.id)}
                                 className={`flex flex-col items-center text-center p-6 rounded-lg border-2 transition-all ${isSelected
-                                        ? 'bg-primary text-white border-primary shadow-lg'
+                                        ? 'bg-primary text-background border-primary shadow-lg'
                                         : 'bg-white text-primary border-border hover:border-text-muted'
                                     }`}
                             >
@@ -47,7 +47,7 @@ export default function OnboardingStep2() {
 
                 <button
                     disabled={!selected}
-                    className={`w-full mt-8 py-4 rounded-md font-medium transition-all ${selected ? 'bg-primary text-white hover:opacity-90' : 'bg-surface-2 text-text-muted cursor-not-allowed'
+                    className={`w-full mt-8 py-4 rounded-md font-medium transition-all ${selected ? 'bg-primary text-background hover:opacity-90' : 'bg-surface-2 text-text-muted cursor-not-allowed'
                         }`}
                 >
                     Continue

@@ -59,8 +59,7 @@ export default function NetworkPage() {
 
     // const { getAverageRating } = useRatingStore() // Removed to fix crash after API migration
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const initialTab = (searchParams?.get('tab') as 'connections' | 'requests' | 'offers') || 'connections';
-    const [tab, setTab] = useState<'connections' | 'requests' | 'offers'>(initialTab)
+    const [tab, setTab] = useState<'connections' | 'requests' | 'offers'>('connections')
     const [search, setSearch] = useState('')
 
     useEffect(() => {
@@ -100,7 +99,7 @@ export default function NetworkPage() {
 
                 <main className="flex-1 w-full max-w-[680px] md:border-r border-border min-h-screen">
                     {/* Header */}
-                    <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-border z-10 px-6 py-4">
+                    <div className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border z-10 px-6 py-4">
                         <h1 className="font-display text-2xl mb-3">My Network</h1>
                         <div className="flex gap-4 sm:gap-6 border-b border-border -mx-6 px-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                             <button
@@ -133,7 +132,7 @@ export default function NetworkPage() {
                                     placeholder="Search connections..."
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
-                                    className="w-full border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary mb-6"
+                                    className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary mb-6 text-text-primary"
                                 />
 
                                 {filteredConnections.length === 0 ? (
@@ -159,7 +158,7 @@ export default function NetworkPage() {
                                                         initial={{ opacity: 0, y: 8 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, x: -20 }}
-                                                        className="flex items-center gap-4 p-4 bg-white border border-border rounded-2xl hover:border-primary transition-all shadow-sm"
+                                                        className="flex items-center gap-4 p-4 bg-surface border border-border rounded-2xl hover:border-primary transition-all shadow-sm"
                                                     >
                                                         <Link href={`/profile/${otherUser.username}`}>
                                                             <VerifiedAvatar
@@ -182,7 +181,7 @@ export default function NetworkPage() {
                                                             <button
                                                                 onClick={() => handleWhatsappClick(c.id)}
                                                                 title="Connect on WhatsApp"
-                                                                className="p-2 rounded-lg border border-border hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-all text-text-muted"
+                                                                className="p-2 rounded-lg border border-border hover:bg-surface-2 hover:border-primary hover:text-primary transition-all text-text-muted"
                                                             >
                                                                 <Zap className="w-4 h-4 fill-current" />
                                                             </button>
@@ -229,7 +228,7 @@ export default function NetworkPage() {
                                                 initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, x: 20 }}
-                                                className="flex items-center gap-4 p-4 bg-white border border-border rounded-2xl"
+                                                className="flex items-center gap-4 p-4 bg-surface border border-border rounded-2xl"
                                             >
                                                 <Link href={`/profile/${r.requesterUsername}`}>
                                                     <VerifiedAvatar
@@ -251,7 +250,7 @@ export default function NetworkPage() {
                                                     <button
                                                         onClick={() => acceptRequest(r.id)}
                                                         title="Accept connection"
-                                                        className="p-2.5 rounded-xl bg-primary text-white hover:opacity-90 transition-all active:scale-95 shadow-sm"
+                                                        className="p-2.5 rounded-xl bg-primary text-background hover:opacity-90 transition-all active:scale-95 shadow-sm"
                                                     >
                                                         <Check className="w-4 h-4" />
                                                     </button>
@@ -291,7 +290,7 @@ export default function NetworkPage() {
                                                 initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
-                                                className="flex flex-col gap-3 p-5 bg-white border border-border rounded-2xl hover:border-text-muted transition-all shadow-sm group"
+                                                className="flex flex-col gap-3 p-5 bg-surface border border-border rounded-2xl hover:border-text-muted transition-all shadow-sm group"
                                             >
                                                 <div className="flex justify-between items-start">
                                                     <div className="flex items-center gap-3">
@@ -318,7 +317,7 @@ export default function NetworkPage() {
                                                             <div className="flex items-center gap-2 mt-1">
                                                                 {/* Connect icon or Status */}
                                                                 {o.status === 'ACCEPTED' ? (
-                                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-text-primary bg-surface-2 px-2 py-0.5 rounded-full uppercase tracking-widest border border-border">
                                                                         <CheckCheck className="w-3 h-3" /> Connected
                                                                     </span>
                                                                 ) : connectionsArray.some(c => c.requesterUsername === o.requesterUsername || c.receiverUsername === o.requesterUsername) ? (
@@ -330,26 +329,17 @@ export default function NetworkPage() {
                                                                         <button
                                                                             onClick={async () => {
                                                                                 try {
-                                                                                    await sendRequest(null, 'Connecting via offer!', o.requesterId);
+                                                                                    await acceptOffer(o.id);
                                                                                 } catch (err: any) {
-                                                                                    if (err.message === 'Request already exists' || err.message?.includes('already connected')) {
-                                                                                        setStatusModal({
-                                                                                            isOpen: true,
-                                                                                            type: 'duplicate',
-                                                                                            title: 'Already Connected',
-                                                                                            message: 'You are already connected or have a pending request with this person.'
-                                                                                        });
-                                                                                    } else {
-                                                                                        setStatusModal({
-                                                                                            isOpen: true,
-                                                                                            type: 'error',
-                                                                                            title: 'Request Failed',
-                                                                                            message: err.message || 'Failed to send request'
-                                                                                        });
-                                                                                    }
+                                                                                    setStatusModal({
+                                                                                        isOpen: true,
+                                                                                        type: 'error',
+                                                                                        title: 'Action Failed',
+                                                                                        message: err.message || 'Failed to accept offer'
+                                                                                    });
                                                                                 }
                                                                             }}
-                                                                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-primary text-white rounded-lg hover:opacity-90 transition-all"
+                                                                            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-primary text-background rounded-lg hover:opacity-90 transition-all"
                                                                         >
                                                                             Accept
                                                                         </button>
@@ -371,7 +361,7 @@ export default function NetworkPage() {
                                                          {o.status === 'ACCEPTED' && (
                                                              <button 
                                                                  onClick={() => handleWhatsappClick(o.id)}
-                                                                 className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all border border-green-100"
+                                                                 className="p-1.5 bg-primary text-background rounded-lg hover:opacity-90 transition-all border border-border"
                                                                  title="Chat on WhatsApp"
                                                                >
                                                                  <Zap className="w-4 h-4" />
@@ -411,7 +401,7 @@ export default function NetworkPage() {
 
                 {/* Right sidebar */}
                 <aside className="hidden xl:block w-[320px] p-8">
-                    <div className="bg-white border border-border p-6 rounded-2xl shadow-sm mb-6">
+                    <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm mb-6">
                         <h3 className="font-display text-lg mb-4">Network Stats</h3>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
@@ -430,7 +420,7 @@ export default function NetworkPage() {
                     </div>
 
                     {/* Sponsored Card */}
-                    <div className="bg-white border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
+                    <div className="bg-surface border border-border border-dashed p-6 rounded-2xl shadow-sm relative overflow-hidden group">
                         <div className="absolute top-3 right-3">
                             <span className="text-[8px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded-full border border-primary/20">
                                 Coming Soon

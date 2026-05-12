@@ -110,7 +110,7 @@ export default function NearbyEcosystem() {
                 <Sidebar />
 
                 <main className="flex-1 flex flex-col min-h-screen border-x border-border overflow-hidden">
-                    <header className="p-6 md:p-8 border-b border-border bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                    <header className="p-6 md:p-8 border-b border-border bg-background/80 backdrop-blur-xl sticky top-0 z-50">
                         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center">
                             <div className="flex-shrink-0">
                                 <h1 className="text-3xl font-display font-medium tracking-tight mb-1">Nearby Ecosystem</h1>
@@ -134,19 +134,19 @@ export default function NearbyEcosystem() {
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+                            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto lg:overflow-visible no-scrollbar pb-2 lg:pb-0">
                                 {/* View Toggle */}
                                 <div className="bg-surface-2 p-1 rounded-xl flex gap-1 border border-border h-12 flex-shrink-0">
                                     <button 
                                         onClick={() => setViewMode('map')}
-                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'map' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'}`}
+                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'map' ? 'bg-primary text-background shadow-md' : 'text-text-muted hover:text-text-primary'}`}
                                     >
                                         <MapType className="w-4 h-4" />
                                         <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">Map</span>
                                     </button>
                                     <button 
                                         onClick={() => setViewMode('list')}
-                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-primary'}`}
+                                        className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-primary text-background shadow-md' : 'text-text-muted hover:text-text-primary'}`}
                                     >
                                         <LayoutGrid className="w-4 h-4" />
                                         <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">List</span>
@@ -165,7 +165,7 @@ export default function NearbyEcosystem() {
                                     <select 
                                         value={searchRole}
                                         onChange={(e) => setSearchRole(e.target.value)}
-                                        className="appearance-none bg-white border border-border rounded-xl px-5 pr-10 h-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-black transition-all cursor-pointer shadow-sm w-full"
+                                        className="appearance-none bg-surface border border-border rounded-xl px-5 pr-10 h-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-black transition-all cursor-pointer shadow-sm w-full"
                                     >
                                         {roles.map(r => (
                                             <option key={r.id} value={r.id} className="bg-white">{r.label.toUpperCase()}</option>
@@ -229,8 +229,8 @@ export default function NearbyEcosystem() {
                                         {nearbySignals.length > 0 && (
                                             <div>
                                                 <div className="flex items-center gap-3 mb-6">
-                                                    <div className="p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                                                        <Zap className="w-5 h-5 text-orange-500" />
+                                                    <div className="p-2 bg-surface-2 rounded-lg border border-border">
+                                                        <Zap className="w-5 h-5 text-primary" />
                                                     </div>
                                                     <h3 className="font-display text-xl">Active Signals ({nearbySignals.length})</h3>
                                                 </div>
@@ -246,8 +246,8 @@ export default function NearbyEcosystem() {
                                         {nearbySpaces.length > 0 && (
                                             <div>
                                                 <div className="flex items-center gap-3 mb-6">
-                                                    <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-                                                        <Radio className="w-5 h-5 text-green-500" />
+                                                    <div className="p-2 bg-surface-2 rounded-lg border border-border">
+                                                        <Radio className="w-5 h-5 text-primary" />
                                                     </div>
                                                     <h3 className="font-display text-xl">Collab Spaces ({nearbySpaces.length})</h3>
                                                 </div>
@@ -263,7 +263,7 @@ export default function NearbyEcosystem() {
                                         <div className="pt-12 border-t border-border flex justify-center">
                                             <button 
                                                 onClick={() => setRadius(r => r + 25)}
-                                                className="px-12 py-4 bg-white border border-border text-text-primary rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center gap-3 shadow-sm"
+                                                className="px-12 py-4 bg-surface border border-border text-text-primary rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white transition-all active:scale-95 flex items-center gap-3 shadow-sm"
                                             >
                                                 <Navigation className="w-4 h-4" />
                                                 Search Further ({radius + 25}km)
@@ -282,7 +282,7 @@ export default function NearbyEcosystem() {
                                         </p>
                                         <button 
                                             onClick={() => setRadius(r => r + 25)}
-                                            className="px-8 py-3 bg-primary text-white rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 transition-all active:scale-95"
+                                            className="px-8 py-3 bg-primary text-background rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 transition-all active:scale-95"
                                         >
                                             Expand Search to {radius + 25}km
                                         </button>
@@ -306,7 +306,7 @@ function UserCard({ u }: { u: ApiUser }) {
     return (
         <div 
             onClick={handleNavigate}
-            className="group relative bg-white border border-border rounded-2xl p-6 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden shadow-sm"
+            className="group relative bg-surface border border-border rounded-2xl p-6 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden shadow-sm"
         >
             <div className="flex items-start gap-5 mb-6">
                 <VerifiedAvatar
@@ -344,15 +344,15 @@ function SignalMiniCard({ s }: { s: ApiSignal }) {
     return (
         <div 
             onClick={() => window.location.href = `/signals/${s.id}`}
-            className="group relative bg-orange-50 border border-orange-100 rounded-2xl p-6 hover:bg-orange-100/50 transition-all cursor-pointer overflow-hidden shadow-sm"
+            className="group relative bg-surface border border-orange-100/20 rounded-2xl p-6 hover:bg-surface-2 transition-all cursor-pointer overflow-hidden shadow-sm"
         >
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                    <Zap className="w-4 h-4 text-orange-600" />
+                <div className="p-2 bg-surface-2 rounded-lg">
+                    <Zap className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                     <h4 className="font-display text-base font-medium text-text-primary group-hover:text-primary transition-colors">{s.title}</h4>
-                    <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest">{s.category}</p>
+                    <p className="text-[10px] text-primary font-bold uppercase tracking-widest">{s.category}</p>
                 </div>
             </div>
             <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed mb-4">{s.description}</p>
@@ -368,16 +368,16 @@ function SpaceCard({ sp }: { sp: any }) {
     return (
         <div 
             onClick={() => window.location.href = `/signals/${sp.id}`}
-            className="group relative bg-white border border-border rounded-2xl p-6 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden flex flex-col h-full shadow-sm"
+            className="group relative bg-surface border border-border rounded-2xl p-6 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/30 transition-all cursor-pointer overflow-hidden flex flex-col h-full shadow-sm"
         >
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-50 rounded-lg border border-green-100">
-                        <Building className="w-4 h-4 text-green-600" />
+                    <div className="p-2 bg-surface-2 rounded-lg border border-border">
+                        <Building className="w-4 h-4 text-primary" />
                     </div>
                     <div>
                         <h4 className="font-display text-base font-medium text-text-primary group-hover:text-primary transition-colors line-clamp-1">{sp.name}</h4>
-                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">{sp.type || 'Innovation Hub'}</p>
+                        <p className="text-[10px] text-primary font-bold uppercase tracking-widest">{sp.type || 'Innovation Hub'}</p>
                     </div>
                 </div>
             </div>

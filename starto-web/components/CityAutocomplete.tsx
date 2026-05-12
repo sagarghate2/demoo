@@ -31,9 +31,15 @@ export default function CityAutocomplete({
     const autocompleteService = useRef<any>(null);
     const placesService = useRef<any>(null);
     const sessionToken = useRef<any>(null);
+    const isSelecting = useRef(false);
+    const ignoreValueUpdate = useRef(false);
     const [isApiReady, setIsApiReady] = useState(false);
 
     useEffect(() => {
+        if (ignoreValueUpdate.current) {
+            ignoreValueUpdate.current = false;
+            return;
+        }
         setQuery(value);
     }, [value]);
 
@@ -88,17 +94,23 @@ export default function CityAutocomplete({
                 sessionToken.current = new (window as any).google.maps.places.AutocompleteSessionToken();
             }
 
+            console.log('[CityAutocomplete] Fetching Google predictions for:', input);
             autocompleteService.current.getPlacePredictions(
                 {
                     input,
                     sessionToken: sessionToken.current,
                 },
-                (predictions: any[] | null) => {
+                (predictions: any[] | null, status: any) => {
+                    console.log('[CityAutocomplete] Google predictions status:', status);
+                    if (status !== 'OK') {
+                        console.error('[CityAutocomplete] Google predictions failed:', status);
+                    }
                     googlePredictions = (predictions || []).map(p => ({ ...p, isBackend: false }));
                     combineSuggestions(googlePredictions);
                 }
             );
         } else {
+            console.warn('[CityAutocomplete] Google API not ready, no fallback used.');
             combineSuggestions([]);
         }
 
@@ -122,9 +134,17 @@ export default function CityAutocomplete({
     };
 
     const handleSelect = (item: any) => {
-        const cityName = item.description;
-        setQuery(cityName);
+        isSelecting.current = true;
+        ignoreValueUpdate.current = true;
+        const cityName = item.isPhoton ? (item.properties.city || item.properties.name) : item.description;
+        setQuery(item.isPhoton ? item.description : cityName);
         setIsOpen(false);
+
+        if (item.isPhoton) {
+            const [lng, lat] = item.geometry.coordinates;
+            onChange(cityName, lat, lng, item.description);
+            return;
+        }
 
         if (item.isBackend) {
             onChange(cityName);
@@ -168,11 +188,16 @@ export default function CityAutocomplete({
             setSuggestions([]);
             return;
         }
+        if (isSelecting.current) {
+            isSelecting.current = false;
+            return;
+        }
         const timer = setTimeout(() => fetchSuggestions(query), 300);
         return () => clearTimeout(timer);
     }, [query]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        isSelecting.current = false;
         const val = e.target.value;
         setQuery(val);
         // Also inform the parent component of the raw text so it doesn't get lost if they don't select a suggestion
@@ -204,7 +229,7 @@ export default function CityAutocomplete({
                         {suggestions.map((item) => (
                             <button
                                 key={item.place_id}
-                                onClick={() => handleSelect(item)}
+                                onMouseDown={() => handleSelect(item)}
                                 className="w-full text-left px-4 py-3 hover:bg-surface-1 flex items-start gap-3 transition-colors border-b border-border/50 last:border-0"
                             >
                                 {item.isBackend ? (

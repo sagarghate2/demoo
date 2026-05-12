@@ -75,10 +75,10 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hid
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 30 }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="bg-white w-full max-w-[460px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+                        className="bg-background w-full max-w-[460px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
                     >
                         {/* Header */}
-                        <div className="px-8 pt-8 pb-4 flex justify-between items-start bg-white relative">
+                        <div className="px-8 pt-8 pb-4 flex justify-between items-start bg-background relative">
                             <div>
                                 <h2 className="text-[28px] font-bold tracking-tight text-black mb-1">Insights</h2>
                                 <p className="text-sm text-text-muted leading-tight truncate max-w-[300px]">
@@ -103,12 +103,12 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hid
                                         <p className="text-white/60 text-xs uppercase tracking-widest font-bold mb-1">Performance</p>
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-4xl font-light tracking-tighter">{stats.views}</h3>
-                                            <TrendingUp className="w-5 h-5 text-green-400" />
+                                            <TrendingUp className="w-5 h-5 text-white" />
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-white/60 text-[10px] uppercase tracking-widest font-bold mb-1">Conversion</p>
-                                        <span className="text-xl font-light text-green-400">{conversionRate}%</span>
+                                        <span className="text-xl font-light text-white">{conversionRate}%</span>
                                     </div>
                                 </div>
                                 
@@ -126,7 +126,7 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hid
                                                     initial={{ height: 0 }}
                                                     animate={{ height: data.height }}
                                                     transition={{ duration: 1, delay: 0.2 + (idx * 0.05), type: "spring", stiffness: 60 }}
-                                                    className="w-full bg-gradient-to-t from-primary to-accent-blue rounded-[10px]"
+                                                    className="w-full bg-white rounded-[10px]"
                                                 />
                                             </div>
                                             <span className="text-[10px] text-white/50 mt-3 font-medium tracking-wide uppercase">{data.day}</span>
@@ -157,8 +157,8 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hid
                                         transition={{ delay: 0.5 }}
                                         className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50 w-full"
                                     >
-                                        <div className="w-9 h-9 rounded-full bg-accent-blue/10 flex items-center justify-center mb-2">
-                                            <Zap className="w-4 h-4 text-accent-blue" />
+                                        <div className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+                                            <Zap className="w-4 h-4 text-primary" />
                                         </div>
                                         <span className="text-2xl font-light tracking-tighter text-black mb-0.5">{stats.offers}</span>
                                         <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Help Offers</span>
@@ -171,8 +171,8 @@ export default function InsightsModal({ isOpen, onClose, stats, signalTitle, hid
                                     transition={{ delay: 0.6 }}
                                     className="bg-surface-1 p-4 rounded-3xl flex flex-col items-start shadow-sm border border-border/50 w-full"
                                 >
-                                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center mb-2">
-                                        <Eye className="w-4 h-4 text-green-600" />
+                                    <div className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+                                        <Eye className="w-4 h-4 text-primary" />
                                     </div>
                                     <span className="text-2xl font-light tracking-tighter text-black mb-0.5">{stats.views}</span>
                                     <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Total Views</span>

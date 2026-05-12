@@ -47,4 +47,6 @@ List<User> findByLatBetweenAndLngBetween(
 
     List<User> findAllByOrderByCreatedAtDesc();
 
+    List<User> findByRoleIgnoreCase(String role);
+
 }

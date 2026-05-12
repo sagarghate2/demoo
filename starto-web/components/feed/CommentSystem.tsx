@@ -121,7 +121,7 @@ export function CommentRow({ comment, signalId, currentUser, currentUserId, isSi
             />
             <div className="flex-1 min-w-0">
                 <p>
-                    <Link href={`/profile/${comment.userId || comment.username}`} className="font-bold mr-1.5 text-black cursor-pointer hover:underline">
+                    <Link href={`/profile/${comment.userId || comment.username}`} className="font-bold mr-1.5 text-text-primary cursor-pointer hover:underline">
                         @{comment.username}
                     </Link>
                     <span className="text-text-secondary">{comment.text}</span>
@@ -135,8 +135,8 @@ export function CommentRow({ comment, signalId, currentUser, currentUserId, isSi
                             Reply
                         </button>
                     )}
-                    {(currentUserId && (currentUserId === comment.userId) || isSignalOwner) && (
-                        <button onClick={() => setIsDeleteModalOpen(true)} className="text-[10px] font-bold text-accent-red/70 hover:text-accent-red transition-colors">
+                    {(currentUserId && currentUserId === comment.userId) && (
+                        <button onClick={() => setIsDeleteModalOpen(true)} className="text-[10px] font-bold text-text-muted hover:text-primary transition-colors">
                             Delete
                         </button>
                     )}

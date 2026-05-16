@@ -29,6 +29,7 @@ export default function NearbyEcosystem() {
     const [zoom, setZoom] = useState(11)
     const [searchRole, setSearchRole] = useState('')
     const [radius, setRadius] = useState(25)
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
     const roles = [
         { id: '', label: 'All Roles' },
@@ -157,23 +158,37 @@ export default function NearbyEcosystem() {
                                     <CityAutocomplete 
                                         value={searchCity} 
                                         onChange={handleLocationChange} 
-                                        inputClassName="h-12 !py-0 shadow-sm"
+                                        inputClassName="h-12 !py-0 shadow-sm bg-white text-black"
                                     />
                                 </div>
                                 
-                                <div className="relative h-12 flex-shrink-0 min-w-[140px]">
-                                    <select 
-                                        value={searchRole}
-                                        onChange={(e) => setSearchRole(e.target.value)}
-                                        className="appearance-none bg-surface border border-border rounded-xl px-5 pr-10 h-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-black transition-all cursor-pointer shadow-sm w-full"
+                                <div className="relative h-12 flex-shrink-0 w-44">
+                                    <button 
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="bg-black text-white border border-border rounded-xl px-5 h-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-primary transition-all cursor-pointer shadow-sm w-full flex items-center justify-between"
                                     >
-                                        {roles.map(r => (
-                                            <option key={r.id} value={r.id} className="bg-white">{r.label.toUpperCase()}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
-                                        <ChevronDown className="w-4 h-4" />
-                                    </div>
+                                        <span>{roles.find(r => r.id === searchRole)?.label.toUpperCase() || 'ALL ROLES'}</span>
+                                        <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    
+                                    {isDropdownOpen && (
+                                        <div className="absolute z-[100] mt-2 w-full bg-black border border-border rounded-xl overflow-hidden shadow-2xl">
+                                            {roles.map(r => (
+                                                <button
+                                                    key={r.id}
+                                                    onClick={() => {
+                                                        setSearchRole(r.id);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-5 py-3 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                                                        searchRole === r.id ? 'bg-primary text-background' : 'text-white hover:bg-surface-2'
+                                                    }`}
+                                                >
+                                                    {r.label.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <button 

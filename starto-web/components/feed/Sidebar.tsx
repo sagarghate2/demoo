@@ -55,12 +55,41 @@ export default function Sidebar() {
             // Also networking count could be fetched here if needed
             setMyNetworkCount(user.networkSize ?? connections.length);
 
-            // Fetch unread notifications
-            notificationsApi.getUnreadCount().then(({ data }) => {
-                if (data) setUnreadNotifCount(data.count)
+            // Fetch unread notifications (strictly last 7 days)
+            notificationsApi.getAll().then(({ data }) => {
+                if (data) {
+                    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                    const count = data.filter((n: any) => {
+                        const created = new Date(n.createdAt).getTime();
+                        const isRead = n.isRead ?? n.read ?? n.is_read ?? false;
+                        return created >= sevenDaysAgo && !isRead;
+                    }).length;
+                    setUnreadNotifCount(count);
+                }
             })
         }
     }, [isAuthenticated, user, signals, connections])
+
+    // Listen for notification read events to update count
+    useEffect(() => {
+        const handleRead = () => {
+            if (isAuthenticated && user) {
+                notificationsApi.getAll().then(({ data }) => {
+                    if (data) {
+                        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                        const count = data.filter((n: any) => {
+                            const created = new Date(n.createdAt).getTime();
+                            const isRead = n.isRead ?? n.read ?? n.is_read ?? false;
+                            return created >= sevenDaysAgo && !isRead;
+                        }).length;
+                        setUnreadNotifCount(count);
+                    }
+                })
+            }
+        }
+        window.addEventListener('notificationsRead', handleRead);
+        return () => window.removeEventListener('notificationsRead', handleRead);
+    }, [isAuthenticated, user])
 
     // Ping backend to check connectivity
     useEffect(() => {
@@ -161,23 +190,8 @@ export default function Sidebar() {
                     <span className="text-[10px] font-bold uppercase tracking-widest">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
                 </button>
 
-                {/* Backend connection status */}
-                <div className={`mb-3 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${backendStatus === 'live'
-                    ? 'text-primary bg-surface-2'
-                    : backendStatus === 'offline'
-                        ? 'text-orange-500 bg-orange-50'
-                        : 'text-text-muted bg-surface-2'
-                    }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'live' ? 'bg-primary animate-pulse'
-                        : backendStatus === 'offline' ? 'bg-orange-400'
-                            : 'bg-gray-400 animate-pulse'
-                        }`} />
-                    {backendStatus === 'live' ? 'API Live' : backendStatus === 'offline' ? 'Local Mode' : 'Checking…'}
-                </div>
-
                 <div className="flex items-center gap-2 transition-all cursor-pointer">
-                    <Image src="/about-logo.png" alt="Starto Logo" width={20} height={20} />
-                    <span className="text-[10px] font-bold tracking-widest uppercase">Starto V3</span>
+                    <Image src="/logo.png" alt="Starto Logo" width={50} height={16} className="object-contain dark:invert" />
                 </div>
             </div>
         </aside>

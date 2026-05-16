@@ -46,6 +46,7 @@ export default function AuthPage() {
     const [loading, setLoading] = useState(false)
     const [signupSuccess, setSignupSuccess] = useState(false)
     const [isWaitingForVerification, setIsWaitingForVerification] = useState(false)
+    const [isCompletingRegistration, setIsCompletingRegistration] = useState(false)
 
     // Sign-up extra fields
     const [name, setName] = useState('')
@@ -67,6 +68,7 @@ export default function AuthPage() {
         setError('')
         setSignupSuccess(false)
         setForgotSuccess(false)
+        setIsCompletingRegistration(false)
         setEmail('')
         setPassword('')
         setName('')
@@ -167,35 +169,7 @@ export default function AuthPage() {
 
     // ──────────── LOGIN ────────────
 
-    // Builds canonical username from name+role: firstname_lastname_role
-    const buildCanonicalUsername = (name: string, role: string) => {
-        const nameParts = name.trim().split(/\s+/)
-        const firstName = nameParts[0].toLowerCase().replace(/[^a-z0-9]/g, '')
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join('_').toLowerCase().replace(/[^a-z0-9_]/g, '') : ''
-        const roleSlug = role.toLowerCase().replace(/[^a-z0-9]/g, '')
-        const base = lastName ? `${firstName}_${lastName}` : firstName
-        return { base, roleSlug, canonical: `${base}_${roleSlug}` }
-    }
-    
-    // On every login: ensure username is in correct format.
-    // Only keeps stored username if user already customized it (handle differs from auto-gen).
-    const ensureFormattedUsername = (u: { name: string; role: string; username: string; email: string }) => {
-        const { base, roleSlug, canonical } = buildCanonicalUsername(u.name, u.role)
 
-        // Already exactly correct → nothing to do
-        if (u.username === canonical) return { username: u.username, changed: false }
-
-        // Check if user customized the handle (e.g. sagar_g88_talent or krishna_k88_founder)
-        const storedParts = u.username.split('_').filter(Boolean)
-        const storedRole = storedParts[storedParts.length - 1]?.toLowerCase() || ''
-        const storedHandle = storedParts.slice(0, -1).join('_')
-        const isCustomized = storedRole === roleSlug && storedHandle !== base && storedHandle.length > 0
-        if (isCustomized) return { username: u.username, changed: false }
-
-        // Auto-migrate: username is old-format → rebuild from name+role
-        updateUserRecord(u.email, { username: canonical })
-        return { username: canonical, changed: true, oldUsername: u.username }
-    }
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -219,7 +193,10 @@ export default function AuthPage() {
             const { data: profile, error: apiError } = await usersApi.getMe(token)
 
             if (apiError || !profile) {
-                setError(formatBackendError(apiError || 'Failed to load profile from server.'))
+                // User is in Firebase, verified, but missing from backend DB (dropped off during signup)
+                setIsCompletingRegistration(true)
+                setMode('signup')
+                setError('Your email is verified. Please complete your registration below.')
                 return
             }
 
@@ -239,8 +216,50 @@ export default function AuthPage() {
         setLoading(true)
         setError('')
         try {
-            if (!name.trim() || !gender || !email.trim() || !password || !role || !city.trim() || !phone) {
+            if (!name.trim() || !gender || !email.trim() || !role || !city.trim() || !phone) {
                 setError('Please fill all required fields.')
+                setLoading(false)
+                return
+            }
+
+            // Completing registration for an already verified Firebase user
+            if (isCompletingRegistration) {
+                const currentUser = auth.currentUser;
+                if (!currentUser) {
+                    setError('Firebase session lost. Please log in again.');
+                    setLoading(false);
+                    return;
+                }
+                const token = await currentUser.getIdToken();
+                const { data: profile, error: apiError } = await usersApi.register({
+                    email: currentUser.email || email.trim(),
+                    name: name.trim(),
+                    role,
+                    bio,
+                    city,
+                    lat,
+                    lng,
+                    address: address || city,
+                    phone,
+                    gender,
+                    avatarUrl
+                } as any, token)
+
+                if (apiError || !profile) {
+                    setError(formatBackendError(apiError || 'Failed to save profile.'));
+                    setLoading(false);
+                    return;
+                }
+
+                setAuth(currentUser, token, profile as any);
+                router.push('/dashboard');
+                return;
+            }
+
+            // Normal Flow (New User)
+            if (!password) {
+                setError('Password is required.')
+                setLoading(false)
                 return
             }
 
@@ -250,33 +269,7 @@ export default function AuthPage() {
             
             const token = await firebaseUser.getIdToken()
 
-            // 2. Sync with Backend
-            const { data: profile, error: apiError } = await usersApi.register({
-                email: email.trim(),
-                name: name.trim(),
-                role,
-                bio,
-                city,
-                lat,
-                lng,
-                address: address || city,
-                phone,
-                gender,
-                avatarUrl
-            } as any, token)
-
-            if (apiError || !profile) {
-                // Rollback: delete the Firebase user if backend sync fails
-                try {
-                    await firebaseUser.delete();
-                } catch (rollbackErr) {
-                    console.error("Failed to rollback Firebase user:", rollbackErr);
-                }
-                setError(formatBackendError(apiError || 'Account created in Firebase, but failed to sync with our servers.'))
-                return
-            }
-
-            // 3. Send Verification Email & Poll
+            // 2. Send Verification Email & Poll
             await sendEmailVerification(firebaseUser)
             setIsWaitingForVerification(true)
             setLoading(false)
@@ -286,6 +279,28 @@ export default function AuthPage() {
                     await firebaseUser.reload()
                     if (firebaseUser.emailVerified) {
                         clearInterval(pollInterval)
+                        
+                        // 3. Register in Backend ONLY AFTER VERIFIED
+                        const { data: profile, error: apiError } = await usersApi.register({
+                            email: email.trim(),
+                            name: name.trim(),
+                            role,
+                            bio,
+                            city,
+                            lat,
+                            lng,
+                            address: address || city,
+                            phone,
+                            gender,
+                            avatarUrl
+                        } as any, token)
+
+                        if (apiError || !profile) {
+                            setIsWaitingForVerification(false);
+                            setError(formatBackendError(apiError || 'Account verified, but failed to sync with our servers.'));
+                            return;
+                        }
+
                         setAuth(firebaseUser, token, profile as any)
                         setSignupSuccess(true)
                         router.push('/dashboard')
@@ -592,47 +607,59 @@ export default function AuthPage() {
                                 <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Bio <span className="text-gray-600">(optional)</span></label>
                                 <textarea value={bio} onChange={e => setBio(e.target.value)} rows={2} className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors resize-none" />
                             </div>
-                            <div className="border-t border-white/10 pt-4">
-                                <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wider">Create your credentials</p>
-                                <div>
-                                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email <span className="text-red-400">*</span></label>
-                                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors" />
-                                </div>
-                                <div className="mt-4">
-                                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Password <span className="text-red-400">*</span></label>
-                                    <div className="auth-input-container">
-                                        <input 
-                                            type={showPassword ? "text" : "password"} 
-                                            value={password} 
-                                            onChange={e => setPassword(e.target.value)} 
-                                            required 
-                                            className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
-                                        />
-                                        <div className="auth-input-icon mt-1" onClick={() => setShowPassword(!showPassword)}>
-                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {!isCompletingRegistration && (
+                                <div className="border-t border-white/10 pt-4">
+                                    <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wider">Create your credentials</p>
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email <span className="text-red-400">*</span></label>
+                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors" />
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Password <span className="text-red-400">*</span></label>
+                                        <div className="auth-input-container">
+                                            <input 
+                                                type={showPassword ? "text" : "password"} 
+                                                value={password} 
+                                                onChange={e => setPassword(e.target.value)} 
+                                                required 
+                                                className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
+                                            />
+                                            <div className="auth-input-icon mt-1" onClick={() => setShowPassword(!showPassword)}>
+                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Confirm Password <span className="text-red-400">*</span></label>
+                                        <div className="auth-input-container">
+                                            <input 
+                                                type={showConfirmPassword ? "text" : "password"} 
+                                                value={confirmPassword} 
+                                                onChange={e => setConfirmPassword(e.target.value)} 
+                                                required 
+                                                className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
+                                            />
+                                            <div className="auth-input-icon mt-1" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-4">
-                                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Confirm Password <span className="text-red-400">*</span></label>
-                                    <div className="auth-input-container">
-                                        <input 
-                                            type={showConfirmPassword ? "text" : "password"} 
-                                            value={confirmPassword} 
-                                            onChange={e => setConfirmPassword(e.target.value)} 
-                                            required 
-                                            className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/40 focus:bg-white/10 transition-colors pr-12" 
-                                        />
-                                        <div className="auth-input-icon mt-1" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </div>
+                            )}
+
+                            {isCompletingRegistration && (
+                                <div className="border-t border-white/10 pt-4">
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email (Verified) <span className="text-red-400">*</span></label>
+                                        <input type="email" value={email} disabled className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-gray-500 cursor-not-allowed" />
                                     </div>
                                 </div>
-                            </div>
+                            )}
+
                             {error && <p className="text-red-500 text-xs flex items-center gap-1 font-medium"><AlertCircle className="w-3 h-3" /> {error}</p>}
                             <button disabled={loading} type="submit" className="w-full bg-white text-black py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all mt-4 disabled:opacity-50">
                                 <Mail className="w-5 h-5" />
-                                {loading ? 'Creating account...' : 'Create Account'}
+                                {loading ? (isCompletingRegistration ? 'Saving profile...' : 'Creating account...') : (isCompletingRegistration ? 'Complete Registration' : 'Create Account')}
                             </button>
                         </motion.form>
                     )}

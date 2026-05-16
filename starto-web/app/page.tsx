@@ -62,7 +62,7 @@ export default function LandingPage() {
             {/* ── NAVIGATION ──────────────────────────────────────────── */}
             <nav id="navbar" className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
                 <Link href="/" className="nav-logo">
-                    <img src="/about-logo.png" alt="Starto Logo" className="nav-logo-img" />
+                    <img src="/logo.png" alt="Starto Logo" className="nav-logo-img dark:invert" />
                 </Link>
                 <ul className="nav-links">
                     <li><Link href="/about">About</Link></li>
@@ -834,7 +834,7 @@ export default function LandingPage() {
                     <div className="footer-grid">
                         <div>
                             <Link href="/" className="nav-logo" style={{ display: 'inline-flex', marginBottom: '24px' }}>
-                                <img src="/about-logo.png" alt="Starto Logo" className="footer-logo-img" />
+                                <img src="/logo.png" alt="Starto Logo" className="footer-logo-img dark:invert" />
                             </Link>
                             <p className="footer-brand-tagline">
                                 A unified growth ecosystem built for the next generation of Indian entrepreneurs. Where ambition meets its ecosystem.

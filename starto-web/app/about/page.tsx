@@ -23,7 +23,7 @@ export default function AboutPage() {
             {/* Navigation */}
             <nav className="fixed top-0 left-0 right-0 z-[100] px-10 h-[72px] flex items-center justify-between bg-background/80 backdrop-blur-[20px] border-b border-border transition-all duration-300">
                 <Link href="/" className="flex items-center gap-[10px] no-underline">
-                    <img src="/about-logo.png" alt="Starto Logo" className="h-[40px] w-auto block" />
+                    <img src="/logo.png" alt="Starto Logo" className="h-[56px] w-auto block dark:invert" />
                 </Link>
                 <ul className="hidden md:flex items-center gap-[36px] list-none m-0 p-0">
                     <li><Link href="/about" className="text-[11px] font-bold uppercase tracking-[2px] text-primary transition-all border-b-2 border-black pb-1">About</Link></li>
@@ -136,8 +136,7 @@ export default function AboutPage() {
                 <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-16 mb-24">
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-3 mb-8">
-                            <Image src="/about-logo.png" alt="Starto" width={40} height={40} className="invert" />
-                            <span className="text-2xl font-bold tracking-tighter uppercase font-display">STARTO V3</span>
+                            <Image src="/logo.png" alt="Starto" width={160} height={52} className="object-contain dark:invert" />
                         </div>
                         <p className="text-text-secondary text-lg max-w-sm leading-relaxed mb-10">
                             A unified growth ecosystem for Tier-2 & Tier-3 investor hubs. 

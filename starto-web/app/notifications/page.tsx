@@ -14,7 +14,7 @@ export default function NotificationsPage() {
 
     const normalizeNotif = (n: any) => ({ 
         ...n, 
-        isRead: n.isRead ?? n.read ?? n.is_read ?? n.isRead === true ?? false 
+        isRead: n.isRead ?? n.read ?? n.is_read ?? false 
     })
 
     useEffect(() => {
@@ -25,13 +25,9 @@ export default function NotificationsPage() {
                     .map(normalizeNotif)
                     .filter((n: any) => {
                         const created = new Date(n.createdAt).getTime();
+                        // Strictly keep only notifications from the last 7 days
                         return created >= sevenDaysAgo;
                     })
-                    // Show unread first, then read, but only unread are shown by default?
-                    // Actually, the previous code filtered for !n.isRead.
-                    // The user said "notification section keep the last 7 days notifiation only".
-                    // They didn't say "only unread".
-                    // I'll show both read and unread from the last 7 days.
                 setNotifications(filtered)
             }
         })
@@ -44,6 +40,7 @@ export default function NotificationsPage() {
         } else {
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true }))) // Mark as read but keep in list
             toast.success("All notifications marked as read")
+            window.dispatchEvent(new CustomEvent('notificationsRead'));
         }
     }
 
@@ -53,6 +50,7 @@ export default function NotificationsPage() {
         if (!notif.isRead) {
             await notificationsApi.markAsRead(notif.id)
             setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n))
+            window.dispatchEvent(new CustomEvent('notificationsRead'));
         }
 
         // Parse data if it comes as a JSON string
@@ -135,7 +133,7 @@ export default function NotificationsPage() {
                                 <div 
                                     key={notif.id} 
                                     onClick={() => handleNotificationClick(notif)}
-                                    className={`bg-white border p-5 rounded-xl flex items-center gap-6 group transition-all cursor-pointer ${
+                                    className={`bg-surface border p-5 rounded-xl flex items-center gap-6 group transition-all cursor-pointer ${
                                         notif.isRead ? 'border-border opacity-70' : 'border-primary shadow-sm'
                                     } hover:border-text-muted`}
                                 >
@@ -143,7 +141,7 @@ export default function NotificationsPage() {
                                         {getIcon(notif.type)}
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-medium leading-relaxed mb-1 text-black">
+                                        <p className="text-sm font-medium leading-relaxed mb-1 text-text-primary">
                                             {notif.title ? <strong>{notif.title}: </strong> : ''}
                                             {notif.body}
                                         </p>

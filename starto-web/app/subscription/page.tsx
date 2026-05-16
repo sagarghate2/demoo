@@ -463,7 +463,7 @@ export default function SubscriptionPage() {
                                                 {plan.features.map((f: string) => (
                                                     <div key={f} className="flex items-center gap-2">
                                                         <Check className="w-3.5 h-3.5 text-primary opacity-60" />
-                                                        <span className={`text-[12px] leading-tight ${plan.highlight ? 'text-black/70' : 'text-gray-300'}`}>{f}</span>
+                                                        <span className={`text-[12px] leading-tight ${plan.highlight ? 'text-background/70' : 'text-gray-300'}`}>{f}</span>
                                                     </div>
                                                 ))}
                                             </div>

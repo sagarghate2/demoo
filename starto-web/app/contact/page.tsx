@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { Mail, MapPin, Clock, Send, CheckCircle2 } from 'lucide-react';
 import { contactApi } from '@/lib/apiClient';
 import '../landing.css';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function ContactPage() {
     const [scrolled, setScrolled] = useState(false);
+    const { isAuthenticated, user } = useAuthStore();
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function ContactPage() {
             {/* ── NAVIGATION ──────────────────────────────────────────── */}
             <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
                 <Link href="/" className="nav-logo">
-                    <img src="/about-logo.png" alt="Starto Logo" className="nav-logo-img" />
+                    <img src="/logo.png" alt="Starto Logo" className="nav-logo-img dark:invert" />
                 </Link>
                 <ul className="nav-links">
                     <li><Link href="/about">About</Link></li>
@@ -55,12 +57,25 @@ export default function ContactPage() {
                     <li><Link href="/subscription">Pricing</Link></li>
                     <li><Link href="/careers">Careers</Link></li>
                 </ul>
-                <div className="nav-badge">
-                    Ecosystem V3
-                </div>
+
                 <div className="nav-cta">
-                    <Link href="/auth" className="btn-ghost">Sign In</Link>
-                    <Link href="/auth" className="btn-primary">Get Started →</Link>
+                    {isAuthenticated && user ? (
+                        <Link href="/profile" className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1px] text-text-secondary hover:text-primary transition-all">
+                            {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.name || 'User'} className="w-6 h-6 rounded-full" />
+                            ) : (
+                                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-primary">
+                                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                                </div>
+                            )}
+                            <span>{user.name || user.username}</span>
+                        </Link>
+                    ) : (
+                        <>
+                            <Link href="/auth" className="btn-ghost">Sign In</Link>
+                            <Link href="/auth" className="btn-primary">Get Started →</Link>
+                        </>
+                    )}
                 </div>
             </nav>
 
@@ -224,7 +239,7 @@ export default function ContactPage() {
                     <div className="footer-grid">
                         <div>
                             <Link href="/" className="nav-logo" style={{ display: 'inline-flex', marginBottom: '24px' }}>
-                                <img src="/about-logo.png" alt="Starto Logo" className="footer-logo-img" />
+                                <img src="/logo.png" alt="Starto Logo" className="footer-logo-img dark:invert" />
                             </Link>
                             <p className="footer-brand-tagline">
                                 A unified growth ecosystem built for the next generation of Indian entrepreneurs. Where ambition meets its ecosystem.
